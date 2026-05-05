@@ -3,9 +3,9 @@ from supabase import create_client, Client
 
 # --- Supabase Configuration ---
 # သင်၏ Supabase Project Settings ထဲမှ URL နှင့် API Key ကို ဒီနေရာမှာ ထည့်ပေးပါ
-SUPABASE_URL = "https://batsowuihgwhxbboucpy.supabase.co"
-SUPABASE_KEY = "sb_publishable_OBTOI4EioNVufb5akpDOwA_75EmAcWr"
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+url = "https://batsowuihgwhxbboucpy.supabase.co"
+key = "sb_publishable_OBTOI4EioNVufb5akpDOwA_75EmAcWr"
+supabase: Client = create_client(url, key)
 
 def check_login(username, password):
     # 'users' table ထဲမှာ username နဲ့ password ကို စစ်ဆေးခြင်း
