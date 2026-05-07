@@ -33,6 +33,14 @@ def login_form():
             else:
                 st.error("Username သို့မဟုတ် Password မှားယွင်းနေပါသည်။")
 
+def translate_numbers(text):
+    mm_nums = "၀၁၂၃၄၅၆၇၈၉"
+    en_nums = "0123456789"
+    # မြန်မာမှ အင်္ဂလိပ်သို့
+    to_en = text.translate(str.maketrans(mm_nums, en_nums))
+    # အင်္ဂလိပ်မှ မြန်မာသို့
+    to_mm = text.translate(str.maketrans(en_nums, mm_nums))
+    return to_en, to_mm
 def main_app():
     st.sidebar.write(f"Welcome, {st.session_state['user_info']['username']}")
     if st.sidebar.button("Logout"):
@@ -73,13 +81,15 @@ def main_app():
 
     with tab2:
         st.subheader("📊 Blacklist Data")
-        # --- Search Section ---
-        search_query = st.text_input("🔍 Search by NRC (နောက်ဆုံး ၆ လုံးဖြင့် ရှာရန်)", placeholder="ဥပမာ - ၀၁၂၃၄၅")
         
-        # Database ကနေ Data ဆွဲယူခြင်း
+        search_query = st.text_input("🔍 Search by NRC (မြန်မာ/English နောက်ဆုံး ၆ လုံး)", placeholder="ဥပမာ - 061328 သို့မဟုတ် ၀၆၁၃၂၈")
+        
         if search_query:
-            # NRC နောက်ဆုံး ၆ လုံးနဲ့ တိုက်စစ်ရန် % သင်္ကေတကို ရှေ့မှာ သုံးပါတယ်
-            records = supabase.table("blacklist_records").select("*").ilike("nrc_number", f"%{search_query}").order("created_at", desc=True).execute()
+            # ဂဏန်းတွေကို နှစ်မျိုးလုံးပြောင်းလိုက်မယ်
+            query_en, query_mm = translate_numbers(search_query)
+            
+            # Database မှာ or condition နဲ့ နှစ်မျိုးလုံးကို ရှာခိုင်းမယ်
+            records = supabase.table("blacklist_records").select("*").or_(f"nrc_number.ilike.%{query_en},nrc_number.ilike.%{query_mm}").order("created_at", desc=True).execute()
         else:
             records = supabase.table("blacklist_records").select("*").order("created_at", desc=True).execute()
         
