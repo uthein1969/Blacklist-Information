@@ -72,11 +72,32 @@ def main_app():
                     st.warning("အမည်နှင့် အကြောင်းရင်းကို မဖြစ်မနေ ထည့်ပေးပါ။")
 
     with tab2:
-        st.subheader("Blacklist Data")
-        # Supabase မှ Data ပြန်ဆွဲထုတ်ခြင်း
+        st.subheader("📊 Blacklist Data")
         records = supabase.table("blacklist_records").select("*").execute()
+        
         if records.data:
-            st.table(records.data)
+            for record in records.data:
+                # ကတ်ပြားလေးတွေနဲ့ ပြသခြင်း
+                with st.expander(f"👤 {record['full_name']} (NRC: {record['nrc_number']})"):
+                    st.write(f"**Reason:** {record['reason']}")
+                    st.write(f"**Listed by:** {record['blacklisted_by']}")
+                    
+                    # --- Admin သီးသန့် လုပ်ဆောင်ချက်များ ---
+                    if st.session_state['user_info']['username'] == 'admin':
+                        col1, col2 = st.columns(2)
+                        
+                        # Update (ပြင်ဆင်ရန်)
+                        with col1:
+                            if st.button("📝 Edit", key=f"edit_{record['id']}"):
+                                st.info("ပြင်ဆင်တဲ့ Form ကို ဒီနေရာမှာ ထည့်နိုင်ပါတယ် (သို့မဟုတ် Modal ဖွင့်နိုင်သည်)")
+                        
+                        # Delete (ဖျက်ရန်)
+                        with col2:
+                            if st.button("🗑️ Delete", key=f"del_{record['id']}"):
+                                supabase.table("blacklist_records").delete().eq("id", record["id"]).execute()
+                                st.success("Data ဖျက်ပြီးပါပြီ။")
+                                time.sleep(1)
+                                st.rerun()
         else:
             st.write("ဒေတာ မရှိသေးပါ။")
 # --- App Entry Point ---
