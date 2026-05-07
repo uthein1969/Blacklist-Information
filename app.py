@@ -84,10 +84,9 @@ def main_app():
                     
                     # --- Admin သီးသန့် လုပ်ဆောင်ချက်များ ---
                     if st.session_state['user_info']['username'] == 'admin':
-                        col1, col2 = st.columns(2)
-                        
-                        # Update (ပြင်ဆင်ရန်)
-                        if st.button("📝 Edit", key=f"btn_edit_{record['id']}"):
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("📝 Edit", key=f"btn_edit_{record['id']}"):
                                     st.session_state[edit_key] = True
                                     st.rerun()
                             with col2:
