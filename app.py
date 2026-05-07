@@ -1,5 +1,6 @@
 import streamlit as st
 from supabase import create_client, Client
+import time
 
 # --- Supabase Configuration ---
 # သင်၏ Supabase Project Settings ထဲမှ URL နှင့် API Key ကို ဒီနေရာမှာ ထည့်ပေးပါ
@@ -62,7 +63,11 @@ def main_app():
                         "blacklisted_by": st.session_state['user_info']['username']
                     }
                     response = supabase.table("blacklist_records").insert(data).execute()
-                    st.success(f"{name} ၏ အချက်အလက်ကို သိမ်းဆည်းပြီးပါပြီ။")
+                    
+                    msg_container = st.empty() # Message ပြမယ့် နေရာအလွတ်လေး ဆောက်လိုက်တယ်
+                    msg_container.success(f"{name} ၏ အချက်အလက်ကို သိမ်းဆည်းပြီးပါပြီ။")
+                    time.sleep(3) # ၃ စက္ကန့် စောင့်မယ်
+                    msg_container.empty()
                 else:
                     st.warning("အမည်နှင့် အကြောင်းရင်းကို မဖြစ်မနေ ထည့်ပေးပါ။")
 
