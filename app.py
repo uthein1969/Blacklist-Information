@@ -87,17 +87,40 @@ def main_app():
                         col1, col2 = st.columns(2)
                         
                         # Update (ပြင်ဆင်ရန်)
-                        with col1:
-                            if st.button("📝 Edit", key=f"edit_{record['id']}"):
-                                st.info("ပြင်ဆင်တဲ့ Form ကို ဒီနေရာမှာ ထည့်နိုင်ပါတယ် (သို့မဟုတ် Modal ဖွင့်နိုင်သည်)")
-                        
-                        # Delete (ဖျက်ရန်)
-                        with col2:
-                            if st.button("🗑️ Delete", key=f"del_{record['id']}"):
-                                supabase.table("blacklist_records").delete().eq("id", record["id"]).execute()
-                                st.success("Data ဖျက်ပြီးပါပြီ။")
-                                time.sleep(1)
-                                st.rerun()
+                        if st.button("📝 Edit", key=f"btn_edit_{record['id']}"):
+                                    st.session_state[edit_key] = True
+                                    st.rerun()
+                            with col2:
+                                if st.button("🗑️ Delete", key=f"btn_del_{record['id']}"):
+                                    supabase.table("blacklist_records").delete().eq("id", record["id"]).execute()
+                                    st.success("Data ဖျက်ပြီးပါပြီ။")
+                                    time.sleep(1)
+                                    st.rerun()
+                    else:
+                        # ပြင်ဆင်သည့် Form (Edit Form)
+                        st.info(f"Editing: {record['full_name']}")
+                        with st.form(key=f"form_edit_{record['id']}"):
+                            new_name = st.text_input("Name", value=record['full_name'])
+                            new_nrc = st.text_input("NRC", value=record['nrc_number'])
+                            new_reason = st.text_area("Reason", value=record['reason'])
+                            
+                            f_col1, f_col2 = st.columns(2)
+                            with f_col1:
+                                if st.form_submit_button("✅ Update"):
+                                    update_data = {
+                                        "full_name": new_name,
+                                        "nrc_number": new_nrc,
+                                        "reason": new_reason
+                                    }
+                                    supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
+                                    st.session_state[edit_key] = False
+                                    st.success("ပြင်ဆင်မှု အောင်မြင်ပါသည်။")
+                                    time.sleep(1)
+                                    st.rerun()
+                            with f_col2:
+                                if st.form_submit_button("❌ Cancel"):
+                                    st.session_state[edit_key] = False
+                                    st.rerun()
         else:
             st.write("ဒေတာ မရှိသေးပါ။")
 # --- App Entry Point ---
