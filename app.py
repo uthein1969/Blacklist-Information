@@ -73,7 +73,15 @@ def main_app():
 
     with tab2:
         st.subheader("📊 Blacklist Data")
-        records = supabase.table("blacklist_records").select("*").order("created_at", desc=True).execute()
+        # --- Search Section ---
+        search_query = st.text_input("🔍 Search by NRC (နောက်ဆုံး ၆ လုံးဖြင့် ရှာရန်)", placeholder="ဥပမာ - ၀၁၂၃၄၅")
+        
+        # Database ကနေ Data ဆွဲယူခြင်း
+        if search_query:
+            # NRC နောက်ဆုံး ၆ လုံးနဲ့ တိုက်စစ်ရန် % သင်္ကေတကို ရှေ့မှာ သုံးပါတယ်
+            records = supabase.table("blacklist_records").select("*").ilike("nrc_number", f"%{search_query}").order("created_at", desc=True).execute()
+        else:
+            records = supabase.table("blacklist_records").select("*").order("created_at", desc=True).execute()
         
         if records.data:
             for record in records.data:
