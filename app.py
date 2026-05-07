@@ -73,21 +73,28 @@ def main_app():
 
     with tab2:
         st.subheader("📊 Blacklist Data")
-        records = supabase.table("blacklist_records").select("*").execute()
+        records = supabase.table("blacklist_records").select("*").order("created_at", desc=True).execute()
         
         if records.data:
             for record in records.data:
-                # ကတ်ပြားလေးတွေနဲ့ ပြသခြင်း
                 with st.expander(f"👤 {record['full_name']} (NRC: {record['nrc_number']})"):
-                    st.write(f"**Reason:** {record['reason']}")
-                    st.write(f"**Listed by:** {record['blacklisted_by']}")
                     
-                    # --- Admin သီးသန့် လုပ်ဆောင်ချက်များ ---
-                    if st.session_state['user_info']['username'] == 'admin':
+                    # --- ဒီစာကြောင်းက အရေးကြီးဆုံးပါ (Error တက်နေတဲ့နေရာ) ---
+                    edit_key = f"edit_mode_{record['id']}"
+                    
+                    if edit_key not in st.session_state:
+                        st.session_state[edit_key] = False
+
+                    # Edit Mode မဟုတ်ရင် (ပုံမှန်ပြသရန်)
+                    if not st.session_state[edit_key]:
+                        st.write(f"**Reason:** {record['reason']}")
+                        st.write(f"**Listed by:** {record['blacklisted_by']}")
+                        
+                        if st.session_state['user_info']['username'] == 'admin':
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.button("📝 Edit", key=f"btn_edit_{record['id']}"):
-                                    st.session_state[edit_key] = True
+                                    st.session_state[edit_key] = True # ဒီမှာ သုံးထားလို့ အပေါ်မှာ အရင်ကြေညာရတာပါ
                                     st.rerun()
                             with col2:
                                 if st.button("🗑️ Delete", key=f"btn_del_{record['id']}"):
@@ -95,9 +102,9 @@ def main_app():
                                     st.success("Data ဖျက်ပြီးပါပြီ။")
                                     time.sleep(1)
                                     st.rerun()
+                    
+                    # Edit Mode ဖြစ်နေလျှင် (Form ပြရန်)
                     else:
-                        # ပြင်ဆင်သည့် Form (Edit Form)
-                        st.info(f"Editing: {record['full_name']}")
                         with st.form(key=f"form_edit_{record['id']}"):
                             new_name = st.text_input("Name", value=record['full_name'])
                             new_nrc = st.text_input("NRC", value=record['nrc_number'])
@@ -106,14 +113,10 @@ def main_app():
                             f_col1, f_col2 = st.columns(2)
                             with f_col1:
                                 if st.form_submit_button("✅ Update"):
-                                    update_data = {
-                                        "full_name": new_name,
-                                        "nrc_number": new_nrc,
-                                        "reason": new_reason
-                                    }
+                                    update_data = {"full_name": new_name, "nrc_number": new_nrc, "reason": new_reason}
                                     supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
                                     st.session_state[edit_key] = False
-                                    st.success("ပြင်ဆင်မှု အောင်မြင်ပါသည်။")
+                                    st.success("ပြင်ဆင်ပြီးပါပြီ။")
                                     time.sleep(1)
                                     st.rerun()
                             with f_col2:
