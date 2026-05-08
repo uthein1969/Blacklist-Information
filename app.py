@@ -95,7 +95,7 @@ def main_app():
         
         if records.data:
             for record in records.data:
-                with st.expander(f"👤 {record['full_name']} (NRC: {record['nrc_number']})"):
+                with st.expander(f"👤 {record['full_name']} (NRC/PB: {record['nrc_number']})"):
                     
                     # --- ဒီစာကြောင်းက အရေးကြီးဆုံးပါ (Error တက်နေတဲ့နေရာ) ---
                     edit_key = f"edit_mode_{record['id']}"
