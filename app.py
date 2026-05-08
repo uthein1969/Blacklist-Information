@@ -82,7 +82,7 @@ def main_app():
     with tab2:
         st.subheader("📊 Blacklist Data")
         
-        search_query = st.text_input("🔍 Search by NRC (မြန်မာ/English နောက်ဆုံး ၆ လုံး)", placeholder="ဥပမာ - 061328 သို့မဟုတ် ၀၆၁၃၂၈")
+        search_query = st.text_input("🔍 Search by NRC/PB (မြန်မာ/English နောက်ဆုံး ၆ လုံး)", placeholder="ဥပမာ - 123456 သို့မဟုတ် ၁၂၃၄၅၆")
         
         if search_query:
             # ဂဏန်းတွေကို နှစ်မျိုးလုံးပြောင်းလိုက်မယ်
