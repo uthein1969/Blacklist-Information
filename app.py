@@ -107,6 +107,8 @@ def main_app():
                     if not st.session_state[edit_key]:
                         st.write(f"**Reason:** {record['reason']}")
                         st.write(f"**Listed by:** {record['blacklisted_by']}")
+                        st.write(f"**Company:** {record['Remark1']}")
+                        st.write(f"**Address:** {record['Remark2']}")
                         
                         if st.session_state['user_info']['username'] == 'admin':
                             col1, col2 = st.columns(2)
