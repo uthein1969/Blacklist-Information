@@ -95,6 +95,14 @@ def main_app():
         
         if records.data:
             for record in records.data:
+                for record in records.data:
+                # NRC သို့မဟုတ် PB ခွဲခြားသည့် Logic
+                raw_nrc = str(record['nrc_number']).strip()
+                
+                if raw_nrc and raw_nrc[0].isdigit():
+                    prefix = "NRC"
+                else:
+                    prefix = "PB"
                 with st.expander(f"👤 {record['full_name']} (NRC/PB: {record['nrc_number']})"):
                     
                     # --- ဒီစာကြောင်းက အရေးကြီးဆုံးပါ (Error တက်နေတဲ့နေရာ) ---
