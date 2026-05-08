@@ -95,17 +95,14 @@ def main_app():
         
         if records.data:
             st.write(f"တွေ့ရှိသည့် အရေအတွက်: {len(records.data)} ခု")
-            for record in records.data:  # line 98
-                # NRC သို့မဟုတ် PB ခွဲခြားသည့် Logic
-                raw_nrc = str(record['nrc_number']).strip() # line 100
+            # enumerate ကို အသုံးပြုပြီး loop ပတ်ပါမယ် (i က နံပါတ်စဉ်ပါ)
+            for i, record in enumerate(records.data, start=1):
+                # NRC/PB ခွဲခြားသည့် Logic
+                raw_nrc = str(record['nrc_number']).strip()
+                prefix = "NRC" if raw_nrc and raw_nrc[0].isdigit() else "PB"
                 
-                if raw_nrc and raw_nrc[0].isdigit():
-                    prefix = "NRC"
-                else:
-                    prefix = "PB"
-                
-                # Expander စတင်ခြင်း
-                with st.expander(f"👤 {record['full_name']} ({prefix}: {raw_nrc})"):
+                # Expander တွင် နံပါတ်စဉ် {i} ကိုပါ ထည့်သွင်းပြသခြင်း
+                with st.expander(f"{i} 👤 {record['full_name']} ({prefix}: {raw_nrc})"):
                     # Edit mode သတ်မှတ်ခြင်း
                     edit_key = f"edit_mode_{record['id']}"
                     if edit_key not in st.session_state:
