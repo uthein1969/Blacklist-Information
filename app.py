@@ -94,22 +94,25 @@ def main_app():
             records = supabase.table("blacklist_records").select("*").order("created_at", desc=True).execute()
         
         if records.data:
-            for record in records.data:
-                for record in records.data:
+            st.write(f"တွေ့ရှိသည့် အရေအတွက်: {len(records.data)} ခု")
+            for record in records.data:  # line 98
                 # NRC သို့မဟုတ် PB ခွဲခြားသည့် Logic
-                raw_nrc = str(record['nrc_number']).strip()
+                raw_nrc = str(record['nrc_number']).strip() # line 100
                 
                 if raw_nrc and raw_nrc[0].isdigit():
                     prefix = "NRC"
                 else:
                     prefix = "PB"
-                with st.expander(f"👤 {record['full_name']} (NRC/PB: {record['nrc_number']})"):
-                    
-                    # --- ဒီစာကြောင်းက အရေးကြီးဆုံးပါ (Error တက်နေတဲ့နေရာ) ---
+                
+                # Expander စတင်ခြင်း
+                with st.expander(f"👤 {record['full_name']} ({prefix}: {raw_nrc})"):
+                    # Edit mode သတ်မှတ်ခြင်း
                     edit_key = f"edit_mode_{record['id']}"
-                    
                     if edit_key not in st.session_state:
                         st.session_state[edit_key] = False
+                    
+                    # ဒီနေရာမှာ အရှေ့က View/Edit Form code တွေကို ဆက်ရေးပါ
+                    # ...
 
                     # Edit Mode မဟုတ်ရင် (ပုံမှန်ပြသရန်)
                     if not st.session_state[edit_key]:
