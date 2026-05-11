@@ -95,7 +95,7 @@ def main_app():
             # Database မှာ or condition နဲ့ နှစ်မျိုးလုံးကို ရှာခိုင်းမယ်
             records = supabase.table("blacklist_records").select("*").or_(f"nrc_number.ilike.%{query_en},nrc_number.ilike.%{query_mm}").order("created_at", desc=True).execute()
         else:
-            records = supabase.table("blacklist_records").select("*").order("created_at", desc=True).execute()
+            records = supabase.table("blacklist_records").select("*").order("id", desc=False).execute()
         
         if records.data:
             st.write(f"တွေ့ရှိသည့် အရေအတွက်: {len(records.data)} ခု")
