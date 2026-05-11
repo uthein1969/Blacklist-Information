@@ -147,7 +147,13 @@ def main_app():
                             f_col1, f_col2 = st.columns(2)
                             with f_col1:
                                 if st.form_submit_button("✅ Update"):
-                                    update_data = {"full_name": new_name, "nrc_number": new_nrc, "reason": new_reason, "remark1": new_company, "remark2": new_address }
+                                    update_data = {
+                                        "full_name": new_name, 
+                                        "nrc_number": new_nrc, 
+                                        "reason": new_reason, 
+                                        "remark1": new_company, 
+                                        "remark2": new_address 
+                                    }
                                     supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
                                     st.session_state[edit_key] = False
                                     st.success("ပြင်ဆင်ပြီးပါပြီ။")
