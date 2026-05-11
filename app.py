@@ -86,16 +86,18 @@ def main_app():
     with tab2:
         st.subheader("📊 Blacklist Data")
         
-        # --- Page Reset Function ---
+        # --- Page Reset Function (Search လုပ်ရင် Page 1 ပြန်သွားဖို့) ---
         def reset_page():
             st.session_state.current_page = 1
 
         # Search UI
         search_col1, search_col2 = st.columns(2)
         with search_col1:
-            name_search = st.text_input("🔍 Search by Name", placeholder="အမည်ရိုက်ထည့်ပါ")
+            # on_change=reset_page ထည့်လိုက်ပါပြီ
+            name_search = st.text_input("🔍 Search by Name", placeholder="အမည်ရိုက်ထည့်ပါ", on_change=reset_page)
         with search_col2:
-            search_query = st.text_input("🔍 Search by NRC/PB", placeholder="နံပါတ်ဖြင့်ရှာရန်")
+            # on_change=reset_page ထည့်လိုက်ပါပြီ
+            search_query = st.text_input("🔍 Search by NRC/PB", placeholder="နံပါတ်ဖြင့်ရှာရန်", on_change=reset_page)
         
         # --- Database Query ---
         query = supabase.table("blacklist_records").select("*")
@@ -113,47 +115,41 @@ def main_app():
             items_per_page = 10
             total_pages = max(1, (total_items + items_per_page - 1) // items_per_page)
             
-            if 'current_page' not in st.session_state:
-                st.session_state.current_page = 1
-            
-            # Session State ထဲမှာ လက်ရှိရောက်နေတဲ့ page ကို သိမ်းထားပါမယ် (မရှိသေးရင် 1 လို့ သတ်မှတ်မယ်)
+            # Session State အသစ်သတ်မှတ်ခြင်း
             if 'current_page' not in st.session_state:
                 st.session_state.current_page = 1
 
-            # Button များအတွက် Column ခွဲခြင်း
+            # အရေးကြီးသည်- Search လုပ်လို့ Total page နည်းသွားရင် လက်ရှိ page ကို ညှိပေးခြင်း
+            if st.session_state.current_page > total_pages:
+                st.session_state.current_page = 1
+
+            # Button UI များ
             page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
-            
             with page_col1:
-                # ရှေ့စာမျက်နှာသို့ သွားရန် (Page 1 ထက်ကြီးမှ နှိပ်လို့ရမယ်)
                 if st.button("⬅️ Previous") and st.session_state.current_page > 1:
                     st.session_state.current_page -= 1
                     st.rerun()
 
             with page_col2:
-                # လက်ရှိ စာမျက်နှာနံပါတ်ကို အလယ်မှာ ပြပေးခြင်း
                 st.write(f"Page **{st.session_state.current_page}** of **{total_pages}**")
 
             with page_col3:
-                # နောက်စာမျက်နှာသို့ သွားရန် (Total Page ထက် ငယ်နေမှ နှိပ်လို့ရမယ်)
                 if st.button("Next ➡️") and st.session_state.current_page < total_pages:
                     st.session_state.current_page += 1
                     st.rerun()
             
-            # ပြသရမည့် Data range ကို တွက်ချက်ခြင်း
+            # ပြသရမည့် Data range တွက်ချက်ခြင်း
             start_idx = (st.session_state.current_page - 1) * items_per_page
             end_idx = start_idx + items_per_page
             page_data = records.data[start_idx:end_idx]
 
-            st.divider() # အလှဆင်ရန် မျဉ်းတားခြင်း
+            st.divider()
             
-            # Enumeration ကို စာမျက်နှာအလိုက် နံပါတ်စဉ်တပ်ခြင်း
             for i, record in enumerate(page_data, start=start_idx + 1):
                 raw_nrc = str(record['nrc_number']).strip()
                 prefix = "NRC" if raw_nrc and raw_nrc[0].isdigit() else "PB"
                 
-                # Expander တွင် နံပါတ်စဉ် {i} ကိုပါ ထည့်သွင်းပြသခြင်း
                 with st.expander(f"{i} 👤 {record['full_name']} ({prefix}: {raw_nrc})"):
-                    # Edit mode သတ်မှတ်ခြင်း
                     edit_key = f"edit_mode_{record['id']}"
                     if edit_key not in st.session_state:
                         st.session_state[edit_key] = False
