@@ -1,4 +1,4 @@
-import streamlit as st
+PLimport streamlit as st
 from supabase import create_client, Client
 import time
 
@@ -16,7 +16,7 @@ def check_login(username, password):
 
 def login_form():
     st.title("🚫 Black List Information System")
-    st.subheader("Login to access the system")
+    st.subheader("Login to access the system")stst
 
     with st.form("login_form"):
         username = st.text_input("Username")
@@ -57,6 +57,8 @@ def main_app():
         with st.form("entry_form", clear_on_submit=True):
             name = st.text_input("အမည် (Full Name)")
             nrc = st.text_input("မှတ်ပုံတင်အမှတ် (NRC)")
+            company = st.text_input("ကုမ္ပဏီအမည် (Company Name)")
+            address = st.text_area("နေရပ်လိပ်စာ (Address)")
             reason = st.text_area("အကြောင်းရင်း (Reason)")
             
             submitted = st.form_submit_button("Save Data")
@@ -67,6 +69,8 @@ def main_app():
                     data = {
                         "full_name": name,
                         "nrc_number": nrc,
+                        "Remark1": company,    
+                        "Remark2": address,    
                         "reason": reason,
                         "blacklisted_by": st.session_state['user_info']['username']
                     }
@@ -136,12 +140,14 @@ def main_app():
                         with st.form(key=f"form_edit_{record['id']}"):
                             new_name = st.text_input("Name", value=record['full_name'])
                             new_nrc = st.text_input("NRC", value=record['nrc_number'])
+                            new_company = st.text_input("Company", value=record['Remark1'])
+                            new_address = st.text_input("Address", value=record['Remark2'])
                             new_reason = st.text_area("Reason", value=record['reason'])
                             
                             f_col1, f_col2 = st.columns(2)
                             with f_col1:
                                 if st.form_submit_button("✅ Update"):
-                                    update_data = {"full_name": new_name, "nrc_number": new_nrc, "reason": new_reason}
+                                    update_data = {"full_name": new_name, "nrc_number": new_nrc, "reason": new_reason, "remark1": new_company, "remark2": new_address }
                                     supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
                                     st.session_state[edit_key] = False
                                     st.success("ပြင်ဆင်ပြီးပါပြီ။")
