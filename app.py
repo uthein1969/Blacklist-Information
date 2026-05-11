@@ -133,11 +133,11 @@ def main_app():
                     st.rerun()
             
             # ပြသရမည့် Data range ကို တွက်ချက်ခြင်း
-            start_idx = (current_page - 1) * items_per_page
+            start_idx = (st.session_state.current_page - 1) * items_per_page
             end_idx = start_idx + items_per_page
             page_data = records.data[start_idx:end_idx]
 
-            st.write(f"တွေ့ရှိသည့် အရေအတွက်: {total_items} ခု (Page {current_page} of {total_pages})")
+            st.divider() # အလှဆင်ရန် မျဉ်းတားခြင်း
             
             # Enumeration ကို စာမျက်နှာအလိုက် နံပါတ်စဉ်တပ်ခြင်း
             for i, record in enumerate(page_data, start=start_idx + 1):
