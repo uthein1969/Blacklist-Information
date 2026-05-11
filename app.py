@@ -86,6 +86,10 @@ def main_app():
     with tab2:
         st.subheader("📊 Blacklist Data")
         
+        # --- Page Reset Function ---
+        def reset_page():
+            st.session_state.current_page = 1
+
         # Search UI
         search_col1, search_col2 = st.columns(2)
         with search_col1:
