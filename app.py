@@ -86,22 +86,36 @@ def main_app():
     with tab2:
         st.subheader("📊 Blacklist Data")
         
-        search_query = st.text_input("🔍 Search by NRC/PB (မြန်မာ/English နောက်ဆုံး ၆ လုံး)", placeholder="ဥပမာ - ၁၂၃၄၅၆ သို့မဟုတ် 123456 ")
+        # Search Box နှစ်ခုကို ဘေးချင်းယှဉ်ပြရန် Column ခွဲခြင်း
+        search_col1, search_col2 = st.columns(2)
         
+        with search_col1:
+            name_search = st.text_input("🔍 Search by Name (အမည်ဖြင့်ရှာရန်)", placeholder="အမည်ရိုက်ထည့်ပါ")
+        
+        with search_col2:
+            search_query = st.text_input("🔍 Search by NRC/PB (မြန်မာ/English နောက်ဆုံး ၆ လုံး)", placeholder="ဥပမာ - ၁၂၃၄၅၆ သို့မဟုတ် 123456 ")
+        
+        # --- Search Logic စတင်ခြင်း ---
+        # အခြေခံ Query တစ်ခုကို အရင်သတ်မှတ်ပါမယ်
+        query = supabase.table("blacklist_records").select("*")
+
+        # ၁။ အမည်ဖြင့် ရှာဖွေခြင်း (ပါဝင်ခဲ့လျှင်)
+        if name_search:
+            query = query.ilike("full_name", f"%{name_search}%")
+        
+        # ၂။ NRC/PB နံပါတ်ဖြင့် ရှာဖွေခြင်း (ပါဝင်ခဲ့လျှင်)
         if search_query:
-            # ဂဏန်းတွေကို နှစ်မျိုးလုံးပြောင်းလိုက်မယ်
             query_en, query_mm = translate_numbers(search_query)
-            
-            # Database မှာ or condition နဲ့ နှစ်မျိုးလုံးကို ရှာခိုင်းမယ်
-            records = supabase.table("blacklist_records").select("*").or_(f"nrc_number.ilike.%{query_en},nrc_number.ilike.%{query_mm}").order("created_at", desc=True).execute()
-        else:
-            records = supabase.table("blacklist_records").select("*").order("id", desc=False).execute()
-        
+            query = query.or_(f"nrc_number.ilike.%{query_en},nrc_number.ilike.%{query_mm}")
+
+        # အမြဲတမ်း ID အစဉ်လိုက် (၁၊ ၂၊ ၃...) အတိုင်း စီခိုင်းလိုက်ပါတယ်
+        records = query.order("id", desc=False).execute()
+
+        # --- Data ပြသခြင်း ---
         if records.data:
             st.write(f"တွေ့ရှိသည့် အရေအတွက်: {len(records.data)} ခု")
-            # enumerate ကို အသုံးပြုပြီး loop ပတ်ပါမယ် (i က နံပါတ်စဉ်ပါ)
             for i, record in enumerate(records.data, start=1):
-                # NRC/PB ခွဲခြားသည့် Logic
+                # NRC/PB ခွဲခြားပြသခြင်း
                 raw_nrc = str(record['nrc_number']).strip()
                 prefix = "NRC" if raw_nrc and raw_nrc[0].isdigit() else "PB"
                 
