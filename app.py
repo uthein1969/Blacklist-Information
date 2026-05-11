@@ -16,7 +16,7 @@ def check_login(username, password):
 
 def login_form():
     st.title("🚫 Black List Information System")
-    st.subheader("Login to access the system")stst
+    st.subheader("Login to access the system")
 
     with st.form("login_form"):
         username = st.text_input("Username")
