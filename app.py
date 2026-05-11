@@ -109,8 +109,28 @@ def main_app():
             items_per_page = 10
             total_pages = (total_items + items_per_page - 1) // items_per_page
             
-            # မျက်နှာပြင်ရွေးရန် Slider သို့မဟုတ် Number Input
-            current_page = st.number_input("Page", min_value=1, max_value=total_pages, step=1, value=1)
+            # Session State ထဲမှာ လက်ရှိရောက်နေတဲ့ page ကို သိမ်းထားပါမယ် (မရှိသေးရင် 1 လို့ သတ်မှတ်မယ်)
+            if 'current_page' not in st.session_state:
+                st.session_state.current_page = 1
+
+            # Button များအတွက် Column ခွဲခြင်း
+            page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
+            
+            with page_col1:
+                # ရှေ့စာမျက်နှာသို့ သွားရန် (Page 1 ထက်ကြီးမှ နှိပ်လို့ရမယ်)
+                if st.button("⬅️ Previous") and st.session_state.current_page > 1:
+                    st.session_state.current_page -= 1
+                    st.rerun()
+
+            with page_col2:
+                # လက်ရှိ စာမျက်နှာနံပါတ်ကို အလယ်မှာ ပြပေးခြင်း
+                st.write(f"Page **{st.session_state.current_page}** of **{total_pages}**")
+
+            with page_col3:
+                # နောက်စာမျက်နှာသို့ သွားရန် (Total Page ထက် ငယ်နေမှ နှိပ်လို့ရမယ်)
+                if st.button("Next ➡️") and st.session_state.current_page < total_pages:
+                    st.session_state.current_page += 1
+                    st.rerun()
             
             # ပြသရမည့် Data range ကို တွက်ချက်ခြင်း
             start_idx = (current_page - 1) * items_per_page
