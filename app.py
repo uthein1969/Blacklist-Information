@@ -86,36 +86,41 @@ def main_app():
     with tab2:
         st.subheader("📊 Blacklist Data")
         
-        # Search Box နှစ်ခုကို ဘေးချင်းယှဉ်ပြရန် Column ခွဲခြင်း
+        # Search UI
         search_col1, search_col2 = st.columns(2)
-        
         with search_col1:
-            name_search = st.text_input("🔍 Search by Name (အမည်ဖြင့်ရှာရန်)", placeholder="အမည်ရိုက်ထည့်ပါ")
-        
+            name_search = st.text_input("🔍 Search by Name", placeholder="အမည်ရိုက်ထည့်ပါ")
         with search_col2:
-            search_query = st.text_input("🔍 Search by NRC/PB (မြန်မာ/English နောက်ဆုံး ၆ လုံး)", placeholder="ဥပမာ - ၁၂၃၄၅၆ သို့မဟုတ် 123456 ")
+            search_query = st.text_input("🔍 Search by NRC/PB", placeholder="နံပါတ်ဖြင့်ရှာရန်")
         
-        # --- Search Logic စတင်ခြင်း ---
-        # အခြေခံ Query တစ်ခုကို အရင်သတ်မှတ်ပါမယ်
+        # --- Database Query ---
         query = supabase.table("blacklist_records").select("*")
-
-        # ၁။ အမည်ဖြင့် ရှာဖွေခြင်း (ပါဝင်ခဲ့လျှင်)
         if name_search:
             query = query.ilike("full_name", f"%{name_search}%")
-        
-        # ၂။ NRC/PB နံပါတ်ဖြင့် ရှာဖွေခြင်း (ပါဝင်ခဲ့လျှင်)
         if search_query:
-            query_en, query_mm = translate_numbers(search_query)
-            query = query.or_(f"nrc_number.ilike.%{query_en},nrc_number.ilike.%{query_mm}")
-
-        # အမြဲတမ်း ID အစဉ်လိုက် (၁၊ ၂၊ ၃...) အတိုင်း စီခိုင်းလိုက်ပါတယ်
+            q_en, q_mm = translate_numbers(search_query)
+            query = query.or_(f"nrc_number.ilike.%{q_en},nrc_number.ilike.%{q_mm}")
+        
         records = query.order("id", desc=False).execute()
 
-        # --- Data ပြသခြင်း ---
+        # --- Pagination Logic ---
         if records.data:
-            st.write(f"တွေ့ရှိသည့် အရေအတွက်: {len(records.data)} ခု")
-            for i, record in enumerate(records.data, start=1):
-                # NRC/PB ခွဲခြားပြသခြင်း
+            total_items = len(records.data)
+            items_per_page = 10
+            total_pages = (total_items + items_per_page - 1) // items_per_page
+            
+            # မျက်နှာပြင်ရွေးရန် Slider သို့မဟုတ် Number Input
+            current_page = st.number_input("Page", min_value=1, max_value=total_pages, step=1, value=1)
+            
+            # ပြသရမည့် Data range ကို တွက်ချက်ခြင်း
+            start_idx = (current_page - 1) * items_per_page
+            end_idx = start_idx + items_per_page
+            page_data = records.data[start_idx:end_idx]
+
+            st.write(f"တွေ့ရှိသည့် အရေအတွက်: {total_items} ခု (Page {current_page} of {total_pages})")
+            
+            # Enumeration ကို စာမျက်နှာအလိုက် နံပါတ်စဉ်တပ်ခြင်း
+            for i, record in enumerate(page_data, start=start_idx + 1):
                 raw_nrc = str(record['nrc_number']).strip()
                 prefix = "NRC" if raw_nrc and raw_nrc[0].isdigit() else "PB"
                 
