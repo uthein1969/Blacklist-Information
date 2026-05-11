@@ -151,8 +151,8 @@ def main_app():
                                         "full_name": new_name, 
                                         "nrc_number": new_nrc, 
                                         "reason": new_reason, 
-                                        "remark1": new_company, 
-                                        "remark2": new_address 
+                                        "Remark1": new_company, 
+                                        "Remark2": new_address 
                                     }
                                     supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
                                     st.session_state[edit_key] = False
