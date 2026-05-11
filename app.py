@@ -111,7 +111,10 @@ def main_app():
         if records.data:
             total_items = len(records.data)
             items_per_page = 10
-            total_pages = (total_items + items_per_page - 1) // items_per_page
+            total_pages = max(1, (total_items + items_per_page - 1) // items_per_page)
+            
+            if 'current_page' not in st.session_state:
+                st.session_state.current_page = 1
             
             # Session State ထဲမှာ လက်ရှိရောက်နေတဲ့ page ကို သိမ်းထားပါမယ် (မရှိသေးရင် 1 လို့ သတ်မှတ်မယ်)
             if 'current_page' not in st.session_state:
