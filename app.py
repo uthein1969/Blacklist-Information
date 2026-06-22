@@ -25,13 +25,19 @@ def login_form():
             user_data = check_login(username, password)
             if user_data:
                 import uuid
-                
+
                 # 🌟 ထူးခြားတဲ့ Session ID တစ်ခု ထုတ်ခြင်း
                 new_session_id = str(uuid.uuid4())
                 from datetime import datetime
                 import pytz
                 tz = pytz.timezone('Asia/Yangon')
                 now_mm = datetime.now(tz).isoformat()
+
+                # ယခင်ပိတ်မိနေသော user_logs ဒေတာများကို ကန်ထုတ်ခံရသည့်အမှတ်အသားဖြင့် အလိုအလျောက် ပိတ်ပစ်ခြင်း
+                supabase.table("user_logs").update({
+                    "logout_time": now_mm,
+                    "session_id": f"Kicked Out (Multi-Browser) - {now_mm}"
+                }).eq("username", username).is_("logout_time", "null").execute()
 
                 # Supabase `users` table ထဲမှာ လက်ရှိ Session ID ကို လှမ်းပြီး Lock ခတ်လိုက်ခြင်း
                 supabase.table("users").update({"current_session_id": new_session_id}).eq("username", username).execute()
@@ -270,7 +276,8 @@ def main_app():
     if tab3:
         with tab3:
             st.subheader("📜 User Access Logs (Audit Trail)")
-            
+            @st.fragment(run_every=10)
+            def show_auto_refresh_logs():
             # --- Logs ရှာဖွေရန် Form UI ---
             with st.form("logs_filter_form"):
                 st.write("🔍 **Filter User Logs**")
@@ -343,6 +350,7 @@ def main_app():
                     st.info("ရွေးချယ်ထားသော ရက်စွဲတွင် မှတ်တမ်းမရှိပါ။")
             else:
                 st.write("Logs မှတ်တမ်းများ မရှိသေးပါ။")
+        show_auto_refresh_logs()
 
 # --- App Entry Point ---
 if "logged_in" not in st.session_state:
