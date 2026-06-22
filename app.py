@@ -273,86 +273,79 @@ def main_app():
                                     st.rerun()
         else:
             st.write("ဒေတာ မရှိသေးပါ။")
-    # 🌟 Tab 3: User Logs Management (Admin Only)
-    # ----------------------------------------------------
     if tab3:
         with tab3:
             st.subheader("📜 User Access Logs (Audit Trail)")
+            
             @st.fragment(run_every=10)
             def show_auto_refresh_logs():
-            # --- Logs ရှာဖွေရန် Form UI ---
-            with st.form("logs_filter_form"):
-                st.write("🔍 **Filter User Logs**")
-                col1, col2 = st.columns(2)
-                with col1:
-                    search_username = st.text_input("Username ဖြင့် ရှာရန်", placeholder="ဥပမာ - admin, 001")
-                with col2:
-                    # ရက်စွဲအလိုက် စစ်ထုတ်ချင်လျှင် သုံးရန်
-                    filter_date = st.date_input("ရက်စွဲရွေးချယ်ရန်", value=None)
+                # 🌟 ပြင်ဆင်ချက် - အောက်က ကုဒ်တွေအားလုံးကို ရှေ့က Space (၄) ချက်စီ ပိုတွန်းပြီး Function ထဲ သွတ်သွင်းပေးလိုက်ပါတယ်ဗျာ
+                with st.form("logs_filter_form"):
+                    st.write("🔍 **Filter User Logs**")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        search_username = st.text_input("Username ဖြင့် ရှာရန်", placeholder="ဥပမာ - admin, 001")
+                    with col2:
+                        # ရက်စွဲအလိုက် စစ်ထုတ်ချင်လျှင် သုံးရန်
+                        filter_date = st.date_input("ရက်စွဲရွေးချယ်ရန်", value=None)
                 
-                filter_submitted = st.form_submit_button("Logs ရှာဖွေမည်")
+                    filter_submitted = st.form_submit_button("Logs ရှာဖွေမည်")
 
-            # --- Supabase Query for Logs ---
-            log_query = supabase.table("user_logs").select("*")
-            
-            if search_username:
-                log_query = log_query.ilike("username", f"%{search_username}%")
-            
-            # Query အား id အလိုက် အသစ်ဆုံးကို အပေါ်ကပြရန် (desc=True)
-            logs_response = log_query.order("id", desc=True).execute()
-
-            if logs_response.data:
-                import pandas as pd
-                from datetime import datetime
-                import pytz
-
-                # ဒေတာများကို သပ်သပ်ရပ်ရပ် ပြသနိုင်ရန် List အသစ်တစ်ခု တည်ဆောက်ခြင်း
-                formatted_logs = []
+                # --- Supabase Query for Logs ---
+                log_query = supabase.table("user_logs").select("*")
                 
-                for log in logs_response.data:
-                    # UTC Time မှ မြန်မာစံတော်ချိန်သို့ ပြောင်းလဲပြသရန် Function
-                    def to_local_time(iso_str):
-                        if not iso_str:
-                            return "Active Now (မထွက်သေးပါ)"
-                        # UTC time အား ဖတ်ပြီး မြန်မာစံတော်ချိန် ပြောင်းခြင်း
-                        utc_dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
-                        mm_tz = pytz.timezone('Asia/Yangon')
-                        return utc_dt.astimezone(mm_tz).strftime('%Y-%m-%d %I:%M:%S %p')
+                if search_username:
+                    log_query = log_query.ilike("username", f"%{search_username}%")
+                
+                # Query အား id အလိုက် အသစ်ဆုံးကို အပေါ်ကပြရန် (desc=True)
+                logs_response = log_query.order("id", desc=True).execute()
 
-                    login_local = to_local_time(log['login_time'])
-                    logout_local = to_local_time(log['logout_time'])
+                if logs_response.data:
+                    import pandas as pd
+                    from datetime import datetime
+                    import pytz
 
-                    # ရက်စွဲ Filter ပါဝင်ပါက စစ်ထုတ်ခြင်း
-                    if filter_date:
-                        log_date_str = datetime.fromisoformat(log['login_time'].replace('Z', '+00:00')).strftime('%Y-%m-%d')
-                        if log_date_str != str(filter_date):
-                            continue # ရက်စွဲမတူပါက ကျော်သွားမည်
-
-                    formatted_logs.append({
-                        "Log ID": log['id'],
-                        "အသုံးပြုသူ (Username)": log['username'],
-                        "စနစ်ထဲဝင်ချိန် (Login Time)": login_local,
-                        "စနစ်မှထွက်ချိန် (Logout Time)": logout_local,
-                        "Session ID": log['session_id']
-                    })
-
-                if formatted_logs:
-                    # Pandas Dataframe ပြောင်းပြီး သပ်ရပ်လှပသော ဇယားဖြင့် ပြသခြင်း
-                    df_logs = pd.DataFrame(formatted_logs)
+                    # ဒေတာများကို သပ်သပ်ရပ်ရပ် ပြသနိုင်ရန် List အသစ်တစ်ခု တည်ဆောက်ခြင်း
+                    formatted_logs = []
                     
-                    # ဇယားကို စာမျက်နှာအပြည့် လှလှပပ ထုတ်ပြခြင်း
-                    st.dataframe(
-                        df_logs, 
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                    
-                    st.caption(f"📊 စုစုပေါင်းမှတ်တမ်း {len(df_logs)} ခု တွေ့ရှိရပါသည်။")
+                    for log in logs_response.data:
+                        # UTC Time မှ မြန်မာစံတော်ချိန်သို့ ပြောင်းလဲပြသရန် Function
+                        def to_local_time(iso_str):
+                            if not iso_str:
+                                return "Active Now (မထွက်သေးပါ)"
+                            # UTC time အား ဖတ်ပြီး မြန်မာစံတော်ချိန် ပြောင်းခြင်း
+                            utc_dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
+                            mm_tz = pytz.timezone('Asia/Yangon')
+                            return utc_dt.astimezone(mm_tz).strftime('%Y-%m-%d %I:%M:%S %p')
+
+                        login_local = to_local_time(log['login_time'])
+                        logout_local = to_local_time(log['logout_time'])
+
+                        # ရက်စွဲ Filter ပါဝင်ပါက စစ်ထုတ်ခြင်း
+                        if filter_date:
+                            log_date_str = datetime.fromisoformat(log['login_time'].replace('Z', '+00:00')).strftime('%Y-%m-%d')
+                            if log_date_str != str(filter_date):
+                                continue # ရက်စွဲမတူပါက ကျော်သွားမည်
+
+                        formatted_logs.append({
+                            "Log ID": log['id'],
+                            "အသုံးပြုသူ (Username)": log['username'],
+                            "စနစ်ထဲဝင်ချိန် (Login Time)": login_local,
+                            "စနစ်မှထွက်ချိန် (Logout Time)": logout_local,
+                            "Session ID": log['session_id']
+                        })
+
+                    if formatted_logs:
+                        df_logs = pd.DataFrame(formatted_logs)
+                        st.dataframe(df_logs, use_container_width=True, hide_index=True)
+                        st.caption(f"🔄 စုစုပေါင်းမှတ်တမ်း {len(df_logs)} ခု (၁၀ စက္ကန့်လျှင်တစ်ကြိမ် Auto-Refresh ဖြစ်နေပါသည်)။")
+                    else:
+                        st.info("ရွေးချယ်ထားသော ရက်စွဲတွင် မှတ်တမ်းမရှိပါ။")
                 else:
-                    st.info("ရွေးချယ်ထားသော ရက်စွဲတွင် မှတ်တမ်းမရှိပါ။")
-            else:
-                st.write("Logs မှတ်တမ်းများ မရှိသေးပါ။")
-        show_auto_refresh_logs()
+                    st.write("Logs မှတ်တမ်းများ မရှိသေးပါ။")
+
+            # 🌟 အရေးကြီးဆုံးအချက် - တည်ဆောက်ထားသော auto refresh function အား အောက်ဆုံးမှ ပြန်လည် ခေါ်ယူပတ်မောင်းခြင်း
+            show_auto_refresh_logs()
 
 # --- App Entry Point ---
 if "logged_in" not in st.session_state:
