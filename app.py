@@ -25,9 +25,14 @@ def login_form():
             user_data = check_login(username, password)
             if user_data:
                 import uuid
+                
                 # 🌟 ထူးခြားတဲ့ Session ID တစ်ခု ထုတ်ခြင်း
                 new_session_id = str(uuid.uuid4())
-                
+                from datetime import datetime
+                import pytz
+                tz = pytz.timezone('Asia/Yangon')
+                now_mm = datetime.now(tz).isoformat()
+
                 # Supabase `users` table ထဲမှာ လက်ရှိ Session ID ကို လှမ်းပြီး Lock ခတ်လိုက်ခြင်း
                 supabase.table("users").update({"current_session_id": new_session_id}).eq("username", username).execute()
                 
@@ -74,7 +79,7 @@ def main_app():
                 import time
                 time.sleep(3)
                 st.rerun()
-                
+
     # ရရှိလာသော user_info ထဲမှ user_role ကို ရယူခြင်း (မပါရှိပါက default အနေဖြင့် 'user' ဟု ယူပါမည်)
     user_role = st.session_state['user_info'].get('role', 'user')
     
