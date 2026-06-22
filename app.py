@@ -55,10 +55,10 @@ def login_form():
                 log_data = {"username": username, "session_id": current_session}
                 supabase.table("user_logs").insert(log_data).execute()
                 
-                st.success("Login အောင်မြင်ပါတယ်!")
+                st.success("Login successful!")
                 st.rerun() 
             else:
-                st.error("Username သို့မဟုတ် Password မှားယွင်းနေပါသည်။")
+                st.error("Username or Password is incorrect.")
 
 def translate_numbers(text):
     mm_nums = "၀၁၂၃၄၅၆၇၈၉"
@@ -83,7 +83,7 @@ def main_app():
             if live_session_id and my_session_id != live_session_id:
                 st.session_state["logged_in"] = False
                 st.session_state["user_info"] = None
-                st.error("⚠️ သင့်အကောင့်အား အခြား Browser သို့မဟုတ် အခြားနေရာတစ်ခုမှ ဝင်ရောက်သွားပါသဖြင့် စနစ်မှ အလိုအလျောက် ထွက်ရှိပါသည်ု")
+                st.error("⚠️ Your account has been accessed from another browser or location, so you have been logged out.")
                 import time
                 time.sleep(3)
                 st.rerun()
@@ -115,23 +115,24 @@ def main_app():
     # --- Role ပေါ်မူတည်၍ Tabs Rights ခွဲခြားခြင်း ---
     if user_role == 'admin':
         # Admin ဖြစ်ပါက ဒေတာသွင်းခြင်း နှင့် ဒေတာကြည့်ခြင်း Tab ၂ ခုစလုံး ပြပါမည်
-        tab1, tab2, tab3 = st.tabs(["➕ Add New Record", "📊 View Records", "📜 User Logs"])
+        tab1, tab2, tab3, tab4 = st.tabs(["➕ Add New Record", "📊 View Records", "📜 User Logs", "👥 User Management"])
     else:
         # User ဖြစ်ပါက View Records တစ်ခုတည်းကိုသာ Single Tab အနေဖြင့် ပြပါမည်
         tab2, = st.tabs(["📊 View Records"])
         tab1 = None
         tab3 = None # User အတွက် logs tab ကို ပိတ်ထားပါမယ်
+        tab4 = None # User အတွက် user management tab ကို ပိတ်ထားပါမယ်
 
     # --- Tab 1: Add New Record (Admin Only) ---
     if tab1:
         with tab1:
             st.subheader("Add Information to Blacklist")
             with st.form("entry_form", clear_on_submit=True):
-                name = st.text_input("အမည် (Full Name)")
-                nrc = st.text_input("မှတ်ပုံတင်အမှတ် (NRC)")
-                company = st.text_input("ကုမ္ပဏီအမည် (Company Name)")
-                address = st.text_area("နေရပ်လိပ်စာ (Address)")
-                reason = st.text_area("အကြောင်းရင်း (Reason)")
+                name = st.text_input("(Full Name)")
+                nrc = st.text_input("(NRC)")
+                company = st.text_input("(Company Name)")
+                address = st.text_area("(Address)")
+                reason = st.text_area("(Reason)")
                 
                 submitted = st.form_submit_button("Save Data")
                 
@@ -148,11 +149,11 @@ def main_app():
                         response = supabase.table("blacklist_records").insert(data).execute()
                         
                         msg_container = st.empty()
-                        msg_container.success(f"{name} ၏ အချက်အလက်ကို သိမ်းဆည်းပြီးပါပြီ။")
+                        msg_container.success(f"{name} data saved successfully!")
                         time.sleep(3)
                         msg_container.empty()
                     else:
-                        st.warning("အမည်နှင့် အကြောင်းရင်းကို မဖြစ်မနေ ထည့်ပေးပါ။")
+                        st.warning("Must provide at least Name and Reason to save the record.")
 
     # --- Tab 2: View Records (Both Admin and User) ---
     with tab2:
@@ -164,9 +165,9 @@ def main_app():
         # Search UI
         search_col1, search_col2 = st.columns(2)
         with search_col1:
-            name_search = st.text_input("🔍 Search by Name", placeholder="အမည်ရိုက်ထည့်ပါ", on_change=reset_page)
+            name_search = st.text_input("🔍 Search by Name", placeholder="Name", on_change=reset_page)
         with search_col2:
-            search_query = st.text_input("🔍 Search by NRC/PB", placeholder="နံပါတ်ဖြင့်ရှာရန်", on_change=reset_page)
+            search_query = st.text_input("🔍 Search by NRC/PB", placeholder="NRC/PB", on_change=reset_page)
         
         # Database Query
         query = supabase.table("blacklist_records").select("*")
@@ -236,7 +237,7 @@ def main_app():
                             with col2:
                                 if st.button("🗑️ Delete", key=f"btn_del_{record['id']}"):
                                     supabase.table("blacklist_records").delete().eq("id", record["id"]).execute()
-                                    st.success("Data ဖျက်ပြီးပါပြီ။")
+                                    st.success("Data Deleted Successfully!")
                                     time.sleep(1)
                                     st.rerun()
                         else:
@@ -284,12 +285,12 @@ def main_app():
                     st.write("🔍 **Filter User Logs**")
                     col1, col2 = st.columns(2)
                     with col1:
-                        search_username = st.text_input("Username ဖြင့် ရှာရန်", placeholder="ဥပမာ - admin, 001")
+                        search_username = st.text_input("Search by Username", placeholder="e.g., admin, 001")
                     with col2:
                         # ရက်စွဲအလိုက် စစ်ထုတ်ချင်လျှင် သုံးရန်
-                        filter_date = st.date_input("ရက်စွဲရွေးချယ်ရန်", value=None)
+                        filter_date = st.date_input("Select Date", value=None)
                 
-                    filter_submitted = st.form_submit_button("Logs ရှာဖွေမည်")
+                    filter_submitted = st.form_submit_button("Refresh & Filter Logs")
 
                 # --- Supabase Query for Logs ---
                 log_query = supabase.table("user_logs").select("*")
@@ -312,7 +313,7 @@ def main_app():
                         # UTC Time မှ မြန်မာစံတော်ချိန်သို့ ပြောင်းလဲပြသရန် Function
                         def to_local_time(iso_str):
                             if not iso_str:
-                                return "Active Now (မထွက်သေးပါ)"
+                                return "Active Now"
                             # UTC time အား ဖတ်ပြီး မြန်မာစံတော်ချိန် ပြောင်းခြင်း
                             utc_dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
                             mm_tz = pytz.timezone('Asia/Yangon')
@@ -329,23 +330,172 @@ def main_app():
 
                         formatted_logs.append({
                             "Log ID": log['id'],
-                            "အသုံးပြုသူ (Username)": log['username'],
-                            "စနစ်ထဲဝင်ချိန် (Login Time)": login_local,
-                            "စနစ်မှထွက်ချိန် (Logout Time)": logout_local,
+                            "(Username)": log['username'],
+                            "(Login Time)": login_local,
+                            "(Logout Time)": logout_local,
                             "Session ID": log['session_id']
                         })
 
                     if formatted_logs:
                         df_logs = pd.DataFrame(formatted_logs)
                         st.dataframe(df_logs, use_container_width=True, hide_index=True)
-                        st.caption(f"🔄 စုစုပေါင်းမှတ်တမ်း {len(df_logs)} ခု (၁၀ စက္ကန့်လျှင်တစ်ကြိမ် Auto-Refresh ဖြစ်နေပါသည်)။")
+                        st.caption(f"🔄 total logs: {len(df_logs)} (Auto-Refresh every 10 seconds)")
                     else:
-                        st.info("ရွေးချယ်ထားသော ရက်စွဲတွင် မှတ်တမ်းမရှိပါ။")
+                        st.info("no logs found for the given filter criteria.")
                 else:
-                    st.write("Logs မှတ်တမ်းများ မရှိသေးပါ။")
+                    st.write("no Logs data found.")
 
             # 🌟 အရေးကြီးဆုံးအချက် - တည်ဆောက်ထားသော auto refresh function အား အောက်ဆုံးမှ ပြန်လည် ခေါ်ယူပတ်မောင်းခြင်း
             show_auto_refresh_logs()
+
+    # ----------------------------------------------------
+    # ⚙️ Tab 4: User Setup & Management (Admin Only)
+    # ----------------------------------------------------
+    if tab4:
+        with tab4:
+            st.subheader("⚙️ User Account Management Setup")
+            st.write("Account Setup & management")
+            
+            # --- State Management for Edit Mode ---
+            if "edit_user_mode" not in st.session_state:
+                st.session_state["edit_user_mode"] = False
+                st.session_state["edit_user_data"] = None
+
+            @st.fragment
+            def manage_users_crud():
+                # ========================================================
+                # 1. READ & DISPLAY USERS (အသုံးပြုသူများစာရင်း ပြသခြင်း)
+                # ========================================================
+                users_res = supabase.table("users").select("*").order("username").execute()
+                users_list = users_res.data if users_res.data else []
+                
+                # ပြသရန်အတွက် DataFrame ပုံစံပြောင်းခြင်း
+                if users_list:
+                    import pandas as pd
+                    view_data = []
+                    for u in users_list:
+                        view_data.append({
+                            "(Name)": u.get("name", "-"),
+                            "(Username)": u.get("username"),
+                            "(Role)": str(u.get("role")).upper(),
+                            "(Current Session)": u.get("current_session_id", "No Active Session")
+                        })
+                    df_users = pd.DataFrame(view_data)
+                    st.write("📊 user list")
+                    st.dataframe(df_users, use_container_width=True)
+                else:
+                    st.info("no users found in the system. Please add new users using the form below.")
+                
+                st.divider()
+
+                # ========================================================
+                # 2. CREATE (Add New) & UPDATE (Edit) FORM UI
+                # ========================================================
+                if st.session_state["edit_user_mode"]:
+                    st.write("📝 update selected account")
+                    current_u = st.session_state["edit_user_data"]
+                    
+                    with st.form("edit_user_form"):
+                        input_name = st.text_input("Name", value=current_u.get("name", ""))
+                        # Username ကို ပြင်ခွင့်မပြုဘဲ Lock ချထားပါမည် (Primary Key သဘောမို့လို့ပါ)
+                        st.text_input("Username (No Edit)", value=current_u.get("username"), disabled=True)
+                        input_password = st.text_input("New Password", type="password", placeholder="New Password")
+                        input_role = st.selectbox("Role", ["user", "admin"], index=0 if current_u.get("role") == "user" else 1)
+                        
+                        col_f1, col_f2 = st.columns(2)
+                        with col_f1:
+                            save_edit = st.form_submit_button("💾 Save Updates")
+                        with col_f2:
+                            cancel_edit = st.form_submit_button("❌ Cancel")
+
+                    if save_edit:
+                        update_payload = {
+                            "name": input_name,
+                            "role": input_role
+                        }
+                        # Password ဖြည့်ခဲ့မှသာ Update လုပ်မည်
+                        if input_password.strip():
+                            update_payload["password"] = input_password # 💡 ပိုမိုကောင်းမွန်လိုပါက Hash လုပ်နိုင်ပါသည်
+
+                        supabase.table("users").update(update_payload).eq("username", current_u.get("username")).execute()
+                        st.success(f"✨ Username: {current_u.get('username')} id updated successfully!")
+                        st.session_state["edit_user_mode"] = False
+                        st.session_state["edit_user_data"] = None
+                        st.rerun()
+
+                    if cancel_edit:
+                        st.session_state["edit_user_mode"] = False
+                        st.session_state["edit_user_data"] = None
+                        st.rerun()
+
+                else:
+                    # ADD NEW USER FORM
+                    st.write("Add New User")
+                    with st.form("add_user_form", clear_on_submit=True):
+                        new_name = st.text_input("Name", placeholder="Name")
+                        new_username = st.text_input("Username", placeholder="username")
+                        new_password = st.text_input("Password", type="password", placeholder="password")
+                        new_role = st.selectbox("Define Role", ["user", "admin"])
+                        
+                        submit_add = st.form_submit_button("➕ Add New")
+
+                    if submit_add:
+                        if not new_username.strip() or not new_password.strip() or not new_name.strip():
+                            st.error("⚠️ input complete informations to create new account")
+                        else:
+                            # Username ထပ်နေခြင်း ရှိ/မရှိ ကြိုစစ်ခြင်း
+                            check_exist = supabase.table("users").select("username").eq("username", new_username.strip()).execute()
+                            if check_exist.data:
+                                st.error("⚠️ Username already exists. Please choose a different username.")
+                            else:
+                                insert_payload = {
+                                    "name": new_name.strip(),
+                                    "username": new_username.strip(),
+                                    "password": new_password.strip(),
+                                    "role": new_role,
+                                    "current_session_id": None
+                                }
+                                supabase.table("users").insert(insert_payload).execute()
+                                st.success(f"🎉 New user added successfully: {new_name} ({new_username})")
+                                st.rerun()
+
+                st.divider()
+
+                # ========================================================
+                # 3. EDIT & DELETE ACTION BUTTONS (ပြင်ဆင်ရန်နှင့် ဖျက်ရန် ခလုတ်များ)
+                # ========================================================
+                if users_list and not st.session_state["edit_user_mode"]:
+                    st.write("🛠️ Select account for update or delete")
+                    
+                    # ကွင်းစနစ်ဖြင့် ရွေးချယ်ခိုင်းခြင်း
+                    user_options = [f"{u.get('name')} ({u.get('username')})" for u in users_list]
+                    selected_user_str = st.selectbox("Select an account", user_options)
+                    
+                    # ရွေးလိုက်တဲ့ အကောင့်ရဲ့ index ကို ပြန်ရှာခြင်း
+                    selected_index = user_options.index(selected_user_str)
+                    target_user_data = users_list[selected_index]
+
+                    col_act1, col_act2 = st.columns(2)
+                    
+                    with col_act1:
+                        if st.button("📝 update selected account", use_container_width=True):
+                            st.session_state["edit_user_mode"] = True
+                            st.session_state["edit_user_data"] = target_user_data
+                            st.rerun()
+                            
+                    with col_act2:
+                        # လုံခြုံရေးအရ admin အကောင့်ကို အလွယ်တကူ အမှားအယွင်း ဖျက်မိခြင်းမှ ကာကွယ်ရန်
+                        if target_user_data.get("username") == "admin":
+                            st.warning("🔒 cannot delete 'admin' account")
+                        else:
+                            if st.button("🗑️ delete selected account", use_container_width=True, type="secondary"):
+                                # ဒေတာဘေ့စ်မှ ဖျက်ထုတ်ခြင်း
+                                supabase.table("users").delete().eq("username", target_user_data.get("username")).execute()
+                                st.success(f"🗑️ Username: {target_user_data.get('username')} deleted successfully.")
+                                st.rerun()
+
+            # --- မော်ဂျူးအား လှမ်းခေါ်ခြင်း ---
+            manage_users_crud()
 
 # --- App Entry Point ---
 if "logged_in" not in st.session_state:
