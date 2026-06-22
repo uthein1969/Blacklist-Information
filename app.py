@@ -32,7 +32,13 @@ def login_form():
                 import pytz
                 tz = pytz.timezone('Asia/Yangon')
                 now_mm = datetime.now(tz).isoformat()
-
+                
+                # ယခင်ပိတ်မိနေသော user_logs ဒေတာများကို ကန်ထုတ်ခံရသည့်အမှတ်အသားဖြင့် အလိုအလျောက် ပိတ်ပစ်ခြင်း
+                supabase.table("user_logs").update({
+                    "logout_time": now_mm,
+                    "session_id": f"Kicked Out (Multi-Browser) - {now_mm}"
+                }).eq("username", username).is_("logout_time", "null").execute()
+                
                 # Supabase `users` table ထဲမှာ လက်ရှိ Session ID ကို လှမ်းပြီး Lock ခတ်လိုက်ခြင်း
                 supabase.table("users").update({"current_session_id": new_session_id}).eq("username", username).execute()
                 
