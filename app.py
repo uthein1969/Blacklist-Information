@@ -13,7 +13,7 @@ def check_login(username, password):
     return response.data
 
 def login_form():
-    st.title("🚫 Black List Information System")
+    st.title("🚫 Blacklist Information System")
     st.subheader("Login to access the system")
 
     # ၁။ Form UI ကို ဒေတာလက်ခံရန် သီးသန့်ဆောက်ခြင်း
@@ -481,7 +481,7 @@ def main_app():
                 st.session_state["edit_user_mode"] = False
                 st.session_state["edit_user_data"] = None
 
-            # 🌟 ပြင်ဆင်ချက် ၁ - run_every=5 ထည့်သွင်းခြင်းဖြင့် ၅ စက္ကန့်တိုင်း အော်တို Refresh ဖြစ်စေပါသည်
+            # 🌟 ၅ စက္ကန့်တိုင်း အော်တို Auto-Refresh လုပ်ပေးမည့် ပင်မ Fragment Module
             @st.fragment(run_every=5)
             def manage_users_crud():
                 # ========================================================
@@ -491,12 +491,10 @@ def main_app():
                 users_res = supabase.table("users").select("*").order("username").execute()
                 users_list = users_res.data if users_res.data else []
                 
-                # ပြသရန်အတွက် DataFrame ပုံစံပြောင်းခြင်း
                 if users_list:
                     import pandas as pd
                     view_data = []
                     for u in users_list:
-                        # 🌟 ဖြည့်စွက်ချက် - NULL ဖြစ်နေလျှင် None မပြဘဲ "None" စာသား သန့်သန့်လေး ပြစေရန် ညှိလိုက်ပါသည်
                         session_val = u.get("current_session_id")
                         if session_val is None or session_val == "":
                             session_val = "None"
@@ -511,26 +509,20 @@ def main_app():
                     st.write("📊 user list")
                     st.dataframe(df_users, use_container_width=True)
                 else:
-                    st.info("no users found in the system. Please add new users using the form below.")
+                    st.info("no users found in the system.")
                 
                 st.divider()
-
-            # ========================================================
-            # 🌟 ပြင်ဆင်ချက် ၂ - အရေးကြီးဆုံးအချက် (ဤနေရာတွင် Function အား လှမ်းခေါ်ရပါမည်)
-            # ========================================================
-            # def ဆောက်ထားရုံတင်မကဘဲ တကယ်အလုပ်လုပ်အောင် tab4 အောက်တည့်တည့်မှာ လှမ်းခေါ်ပေးလိုက်ခြင်း
-            manage_users_crud()
 
                 # ========================================================
                 # 2. CREATE (Add New) & UPDATE (Edit) FORM UI
                 # ========================================================
+                # 🌟 ပြင်ဆင်ချက် - ဤ Form များကိုပါ ဒေတာပြောင်းလဲလျှင် ချက်ချင်းသိစေရန် Fragment အတွင်းသို့ သွတ်သွင်းလိုက်ပါသည်
                 if st.session_state["edit_user_mode"]:
                     st.write("📝 update selected account")
                     current_u = st.session_state["edit_user_data"]
                     
                     with st.form("edit_user_form"):
                         input_name = st.text_input("Name", value=current_u.get("name", ""))
-                        # Username ကို ပြင်ခွင့်မပြုဘဲ Lock ချထားပါမည် (Primary Key သဘောမို့လို့ပါ)
                         st.text_input("Username (No Edit)", value=current_u.get("username"), disabled=True)
                         input_password = st.text_input("New Password", type="password", placeholder="New Password")
                         input_role = st.selectbox("Role", ["user", "admin"], index=0 if current_u.get("role") == "user" else 1)
@@ -541,25 +533,24 @@ def main_app():
                         with col_f2:
                             cancel_edit = st.form_submit_button("❌ Cancel")
 
-                    if save_edit:
-                        update_payload = {
-                            "name": input_name,
-                            "role": input_role
-                        }
-                        # Password ဖြည့်ခဲ့မှသာ Update လုပ်မည်
-                        if input_password.strip():
-                            update_payload["password"] = input_password # 💡 ပိုမိုကောင်းမွန်လိုပါက Hash လုပ်နိုင်ပါသည်
+                        if save_edit:
+                            update_payload = {
+                                "name": input_name,
+                                "role": input_role
+                            }
+                            if input_password.strip():
+                                update_payload["password"] = input_password
 
-                        supabase.table("users").update(update_payload).eq("username", current_u.get("username")).execute()
-                        st.success(f"✨ Username: {current_u.get('username')} id updated successfully!")
-                        st.session_state["edit_user_mode"] = False
-                        st.session_state["edit_user_data"] = None
-                        st.rerun()
+                            supabase.table("users").update(update_payload).eq("username", current_u.get("username")).execute()
+                            st.success(f"✨ Username: {current_u.get('username')} updated successfully!")
+                            st.session_state["edit_user_mode"] = False
+                            st.session_state["edit_user_data"] = None
+                            st.rerun()
 
-                    if cancel_edit:
-                        st.session_state["edit_user_mode"] = False
-                        st.session_state["edit_user_data"] = None
-                        st.rerun()
+                        if cancel_edit:
+                            st.session_state["edit_user_mode"] = False
+                            st.session_state["edit_user_data"] = None
+                            st.rerun()
 
                 else:
                     # ADD NEW USER FORM
@@ -572,39 +563,37 @@ def main_app():
                         
                         submit_add = st.form_submit_button("➕ Add New")
 
-                    if submit_add:
-                        if not new_username.strip() or not new_password.strip() or not new_name.strip():
-                            st.error("⚠️ input complete informations to create new account")
-                        else:
-                            # Username ထပ်နေခြင်း ရှိ/မရှိ ကြိုစစ်ခြင်း
-                            check_exist = supabase.table("users").select("username").eq("username", new_username.strip()).execute()
-                            if check_exist.data:
-                                st.error("⚠️ Username already exists. Please choose a different username.")
+                        if submit_add:
+                            if not new_username.strip() or not new_password.strip() or not new_name.strip():
+                                st.error("⚠️ input complete information to create new account")
                             else:
-                                insert_payload = {
-                                    "name": new_name.strip(),
-                                    "username": new_username.strip(),
-                                    "password": new_password.strip(),
-                                    "role": new_role,
-                                    "current_session_id": None
-                                }
-                                supabase.table("users").insert(insert_payload).execute()
-                                st.success(f"🎉 New user added successfully: {new_name} ({new_username})")
-                                st.rerun()
+                                check_exist = supabase.table("users").select("username").eq("username", new_username.strip()).execute()
+                                if check_exist.data:
+                                    st.error("⚠️ Username already exists. Please choose a different username.")
+                                else:
+                                    insert_payload = {
+                                        "name": new_name.strip(),
+                                        "username": new_username.strip(),
+                                        "password": new_password.strip(),
+                                        "role": new_role,
+                                        "current_session_id": None
+                                    }
+                                    supabase.table("users").insert(insert_payload).execute()
+                                    st.success(f"🎉 New user added successfully: {new_name} ({new_username})")
+                                    st.rerun()
 
                 st.divider()
-
+                
                 # ========================================================
                 # 3. EDIT & DELETE ACTION BUTTONS (ပြင်ဆင်ရန်နှင့် ဖျက်ရန် ခလုတ်များ)
                 # ========================================================
+                # 🌟 ပြင်ဆင်ချက် - users_list အား တိုက်ရိုက်သိရှိနိုင်ရန် ဤနေရာသို့ နေရာရွှေ့ပေးလိုက်ပါသည်
                 if users_list and not st.session_state["edit_user_mode"]:
                     st.write("🛠️ Select account for update or delete")
                     
-                    # ကွင်းစနစ်ဖြင့် ရွေးချယ်ခိုင်းခြင်း
                     user_options = [f"{u.get('name')} ({u.get('username')})" for u in users_list]
                     selected_user_str = st.selectbox("Select an account", user_options)
                     
-                    # ရွေးလိုက်တဲ့ အကောင့်ရဲ့ index ကို ပြန်ရှာခြင်း
                     selected_index = user_options.index(selected_user_str)
                     target_user_data = users_list[selected_index]
 
@@ -617,17 +606,17 @@ def main_app():
                             st.rerun()
                             
                     with col_act2:
-                        # လုံခြုံရေးအရ admin အကောင့်ကို အလွယ်တကူ အမှားအယွင်း ဖျက်မိခြင်းမှ ကာကွယ်ရန်
                         if target_user_data.get("username") == "admin":
                             st.warning("🔒 cannot delete 'admin' account")
                         else:
                             if st.button("🗑️ delete selected account", use_container_width=True, type="secondary"):
-                                # ဒေတာဘေ့စ်မှ ဖျက်ထုတ်ခြင်း
                                 supabase.table("users").delete().eq("username", target_user_data.get("username")).execute()
                                 st.success(f"🗑️ Username: {target_user_data.get('username')} deleted successfully.")
                                 st.rerun()
 
-            # --- မော်ဂျူးအား လှမ်းခေါ်ခြင်း ---
+            # ========================================================
+            # 🌟 အရေးကြီးဆုံးအချက် - ဤနေရာတွင် Function အား လှမ်းခေါ်ခြင်း
+            # ========================================================
             manage_users_crud()
 
 # --- App Entry Point ---
