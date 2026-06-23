@@ -124,36 +124,87 @@ def main_app():
         tab4 = None # User အတွက် user management tab ကို ပိတ်ထားပါမယ်
 
     # --- Tab 1: Add New Record (Admin Only) ---
+    # --- Tab 1: Add New Record (Admin Only) ---
     if tab1:
         with tab1:
             st.subheader("Add Information to Blacklist")
+            
+            # Form UI တည်ဆောက်ခြင်း
             with st.form("entry_form", clear_on_submit=True):
                 name = st.text_input("(Full Name)")
-                nrc = st.text_input("(NRC)")
+                nrc = st.text_input("(NRC/PB)")
                 company = st.text_input("(Company Name)")
                 address = st.text_area("(Address)")
                 reason = st.text_area("(Reason)")
                 
+                # 📸 ပုံဖိုင်လက်ခံရန် File Uploader
+                uploaded_file = st.file_uploader("📸 (NRC Photo)", type=["png", "jpg", "jpeg"])
+                
                 submitted = st.form_submit_button("Save Data")
                 
-                if submitted:
-                    if name and reason:
-                        data = {
-                            "full_name": name,
-                            "nrc_number": nrc,
-                            "Remark1": company,    
-                            "Remark2": address,    
-                            "reason": reason,
-                            "blacklisted_by": st.session_state['user_info']['username']
-                        }
-                        response = supabase.table("blacklist_records").insert(data).execute()
-                        
-                        msg_container = st.empty()
-                        msg_container.success(f"{name} data saved successfully!")
-                        time.sleep(3)
-                        msg_container.empty()
-                    else:
-                        st.warning("Must provide at least Name and Reason to save the record.")
+            # --- Form Submit လုပ်ပြီးနောက် လုပ်ဆောင်မည့် Logic အပိုင်း (Form အပြင်ဘက်) ---
+            if submitted:
+                if name and reason:
+                    photo_url = None  # မူလအစတွင် ဓာတ်ပုံလင့်ခ်အား ဗလာအဖြစ် ထားရှိခြင်း
+                    
+                    # 🌟 အကယ်၍ အသုံးပြုသူက ပုံရွေးချယ် တင်ခဲ့လျှင်
+                    if uploaded_file is not None:
+                        try:
+                            # ဖိုင်အမျိုးအစား extension အား စစ်ထုတ်ခြင်း (png, jpg)
+                            file_ext = uploaded_file.name.split(".")[-1]
+                            
+                            # ဖိုင်အမည် တူညီမှုမရှိစေရန် သန့်စင်ပြီး စနစ်တကျ အမည်ပေးခြင်း
+                            clean_nrc = nrc.strip().replace("/", "_").replace("(", "_").replace(")", "_").replace(" ", "")
+                            if not clean_nrc:  # အကယ်၍ NRC မထည့်ခဲ့ပါက random သုံးမည်
+                                clean_nrc = "unknown"
+                            
+                            # 🌟 ပြင်ဆင်ချက် ၁ - time.time() ရှေ့တွင် import time ကို ကပ်လျက် ထည့်သွင်းခြင်း
+                            import time
+                            unique_timestamp = int(time.time())
+                            storage_file_name = f"nrc_{clean_nrc}_{unique_timestamp}.{file_ext}"
+                            
+                            # ဖိုင်၏ ဒေတာဗိုက်စ်များအား ဖတ်ယူခြင်း
+                            file_data = uploaded_file.getvalue()
+                            
+                            # Supabase Storage ("blacklist-images") ထဲသို့ ပုံလှမ်းတင်ခြင်း
+                            supabase.storage.from_("blacklist-images").upload(
+                                path=storage_file_name,
+                                file=file_data,
+                                file_options={"content-type": f"image/{file_ext}"}
+                            )
+                            
+                            # တင်ပြီးသွားသော ပုံ၏ အများပြည်သူကြည့်ရှုနိုင်မည့် Public URL လင့်ခ်အား ပြန်လည်ရယူခြင်း
+                            photo_url = supabase.storage.from_("blacklist-images").get_public_url(storage_file_name)
+                            
+                        except Exception as e:
+                            st.error(f"⚠️ Error uploading image to storage: {str(e)}")
+                    
+                    # 🌟 ဒေတာဘေ့စ်ထဲသို့ သွားရောက်သိမ်းဆည်းမည့် Payload ဒေတာအစုအဝေး
+                    data = {
+                        "full_name": name.strip(),
+                        "nrc_number": nrc.strip(),
+                        "Remark1": company.strip(),    
+                        "Remark2": address.strip(),    
+                        "reason": reason.strip(),
+                        "blacklisted_by": st.session_state['user_info']['username'],
+                        "image_url": photo_url  # 📸 ပုံရှိလျှင် URL လင့်ခ်၊ မရှိလျှင် None (NULL) အဖြစ် တွဲသိမ်းမည်
+                    }
+                    
+                    # Database Table ထဲသို့ Insert လုပ်ခြင်း
+                    response = supabase.table("blacklist_records").insert(data).execute()
+                    
+                    # အောင်မြင်ကြောင်း မက်ဆေ့ခ်ျအား စက္ကန့်ပိုင်းပြသပြီး မျက်နှာပြင်အား အော်တို Refresh လုပ်ခြင်း
+                    msg_container = st.empty()
+                    msg_container.success(f"{name} data saved successfully with image!")
+                    
+                    # 🌟 ပြင်ဆင်ချက် ၂ - time.sleep(2) ရှေ့တွင်လည်း import time ကို သီးသန့် အတင်းအကျပ် ထည့်သွင်းခြင်း
+                    import time
+                    time.sleep(2)
+                    
+                    msg_container.empty()
+                    st.rerun()
+                else:
+                    st.warning("Must provide at least Name and Reason to save the record.")
 
     # --- Tab 2: View Records (Both Admin and User) ---
     with tab2:
@@ -211,77 +262,134 @@ def main_app():
 
             st.divider()
             
-            for i, record in enumerate(page_data, start=start_idx + 1):
-                raw_nrc = str(record['nrc_number']).strip() if record['nrc_number'] else ""
-                prefix = "NRC" if raw_nrc and raw_nrc[0].isdigit() else "PB"
+            # 🌟 ဤလိုင်းအောက်ရှိ ကုဒ်အားလုံးကို ညာဘက်သို့ Space (၄) ချက်စီ ညီညာစွာ တွန်းရွှေ့ပေးလိုက်ပါပြီဗျာ
+        for i, record in enumerate(page_data, start=start_idx + 1):
+            raw_nrc = str(record['nrc_number']).strip() if record['nrc_number'] else ""
+            prefix = "NRC" if raw_nrc and raw_nrc[0].isdigit() else "PB"
+            
+            with st.expander(f"{i} 👤 {record['full_name']} ({prefix}: {raw_nrc})"):
+                edit_key = f"edit_mode_{record['id']}"
+                if edit_key not in st.session_state:
+                    st.session_state[edit_key] = False
                 
-                with st.expander(f"{i} 👤 {record['full_name']} ({prefix}: {raw_nrc})"):
-                    edit_key = f"edit_mode_{record['id']}"
-                    if edit_key not in st.session_state:
-                        st.session_state[edit_key] = False
+                # --- Dialog Function ---
+                @st.dialog("📸 NRC Photo View", width="large")
+                def popup_image_dialog(url, name, dlg_id):
+                    st.write(f"**Name:** {name}")
+                    st.image(url, use_container_width=True)
+                    if st.button("Close", key=f"close_dlg_{dlg_id}"):
+                        st.rerun()
+
+                # --- Edit Mode မဟုတ်လျှင် (ပုံမှန်ပြသရန်) ---
+                if not st.session_state[edit_key]:
+                    st.write(f"**Reason:** {record['reason']}")
+                    st.write(f"**Listed by:** {record['blacklisted_by']}")
+                    st.write(f"**Company:** {record['Remark1']}")
+                    st.write(f"**Address:** {record['Remark2']}")
                     
-                    # Edit Mode မဟုတ်လျှင် (ပုံမှန်ပြသရန်)
-                    if not st.session_state[edit_key]:
-                        st.write(f"**Reason:** {record['reason']}")
-                        st.write(f"**Listed by:** {record['blacklisted_by']}")
-                        st.write(f"**Company:** {record['Remark1']}")
-                        st.write(f"**Address:** {record['Remark2']}")
-                        
-                        # --- Right Control: Admin ဖြစ်မှသာ Edit/Delete ခလုတ်များကို ပြသမည် ---
-                        if user_role == 'admin':
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("📝 Edit", key=f"btn_edit_{record['id']}"):
-                                    st.session_state[edit_key] = True
-                                    st.rerun()
-                            with col2:
-                                if st.button("🗑️ Delete", key=f"btn_del_{record['id']}"):
-                                    supabase.table("blacklist_records").delete().eq("id", record["id"]).execute()
-                                    st.success("Data Deleted Successfully!")
-                                    time.sleep(1)
-                                    st.rerun()
-                        else:
-                            # User များအတွက် View Only အနေဖြင့်သာ ရှိနေကြောင်း အချက်ပြစာသားလေး ပြသနိုင်သည်
-                            st.caption("🔒 View Only Mode (Admin access required to Edit/Delete)")
-                    
-                    # Edit Mode ဖြစ်နေလျှင် (Form ပြရန် - Admin သီးသန့်)
+                    if record.get("image_url"):
+                        if st.button("📸 View Image", key=f"btn_img_{record['id']}", use_container_width=True, type="secondary"):
+                            popup_image_dialog(record["image_url"], record.get("full_name", "Unknown"), record['id'])
                     else:
-                        with st.form(key=f"form_edit_{record['id']}"):
-                            new_name = st.text_input("Name", value=record['full_name'])
-                            new_nrc = st.text_input("NRC", value=record['nrc_number'])
-                            new_company = st.text_input("Company", value=record['Remark1'])
-                            new_address = st.text_input("Address", value=record['Remark2'])
-                            new_reason = st.text_area("Reason", value=record['reason'])
+                        st.button("❌ No Image Available", key=f"btn_no_img_{record['id']}", use_container_width=True, disabled=True)
+
+                    st.write("") 
+
+                    # --- Admin Logic ---
+                    if user_role == 'admin':
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("📝 Edit", key=f"btn_edit_{record['id']}", use_container_width=True):
+                                st.session_state[edit_key] = True
+                                st.rerun()
+                        with col2:
+                            if st.button("🗑️ Delete", key=f"btn_del_{record['id']}", use_container_width=True):
+                                supabase.table("blacklist_records").delete().eq("id", record["id"]).execute()
+                                st.success("Data Deleted Successfully!")
+                                import time; time.sleep(1)
+                                st.rerun()
+                    else:
+                        st.caption("🔒 View Only Mode (Admin access required to Edit/Delete)")
+                
+                # ========================================================
+                # Edit Mode ဖြစ်နေလျှင် (Form ပြရန် - Admin သီးသန့်)
+                # ========================================================
+                else:
+                    # ၁။ Form UI တည်ဆောက်ခြင်း (ဒေတာများနှင့် File Uploader သီးသန့်ပြသမည်)
+                    with st.form(key=f"form_edit_{record['id']}"):
+                        new_name = st.text_input("Name", value=record['full_name'])
+                        new_nrc = st.text_input("NRC", value=record['nrc_number'])
+                        new_company = st.text_input("Company", value=record['Remark1'])
+                        new_address = st.text_input("Address", value=record['Remark2'])
+                        new_reason = st.text_area("Reason", value=record['reason'])
+                        
+                        # 📸 ဓာတ်ပုံအသစ်လဲရန် File Uploader
+                        edit_uploaded_file = st.file_uploader("📸 Change NRC Photo (ပုံအသစ်လဲလိုပါက ရွေးချယ်ပါ)", type=["png", "jpg", "jpeg"], key=f"file_edit_{record['id']}")
+                        
+                        f_col1, f_col2 = st.columns(2)
+                        with f_col1:
+                            # 🌟 ဖြေရှင်းချက် ၁ - ခလုတ်များတွင် ဘယ်သူနဲ့မှမထပ်မည့် Unique Key များ စနစ်တကျ တပ်ဆင်ခြင်း
+                            update_submitted = st.form_submit_button("✅ Update", use_container_width=True, key=f"sub_upd_{record['id']}")
+                        with f_col2:
+                            cancel_submitted = st.form_submit_button("❌ Cancel", use_container_width=True, key=f"sub_can_{record['id']}")
                             
-                            f_col1, f_col2 = st.columns(2)
-                            with f_col1:
-                                if st.form_submit_button("✅ Update"):
-                                    update_data = {
-                                        "full_name": new_name, 
-                                        "nrc_number": new_nrc, 
-                                        "reason": new_reason, 
-                                        "Remark1": new_company, 
-                                        "Remark2": new_address 
-                                    }
-                                    supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
-                                    st.session_state[edit_key] = False
-                                    st.success("Update Successfully")
-                                    import time
-                                    time.sleep(1)
-                                    st.rerun()
-                            with f_col2:
-                                if st.form_submit_button("❌ Cancel"):
-                                    st.session_state[edit_key] = False
-                                    st.rerun()
-        else:
-            st.write("No Record")
+                    # 🌟 ဖြေရှင်းချက် ၂ - ခလုတ်များ၏ လုပ်ဆောင်ချက် (Logic) ကို Form ၏ အပြင်ဘက်သို့ ထုတ်ယူခြင်း (with ရဲ့ အောက်တည့်တည့် Indent အတူတူ)
+                    if update_submitted:
+                        # မူလအစတွင် ဒေတာဘေ့စ်ထဲရှိ ပုံဟောင်း URL လင့်ခ်အတိုင်း ထားရှိမည်
+                        final_photo_url = record.get("image_url")
+                        
+                        # အကယ်၍ အသုံးပြုသူက ပုံအသစ် ရွေးချယ်တင်လိုက်လျှင်
+                        if edit_uploaded_file is not None:
+                            try:
+                                file_ext = edit_uploaded_file.name.split(".")[-1]
+                                clean_nrc = new_nrc.strip().replace("/", "_").replace("(", "_").replace(")", "_").replace(" ", "")
+                                if not clean_nrc:
+                                    clean_nrc = "unknown"
+                                    
+                                import time
+                                unique_timestamp = int(time.time())
+                                storage_file_name = f"nrc_{clean_nrc}_{unique_timestamp}.{file_ext}"
+                                file_data = edit_uploaded_file.getvalue()
+                                
+                                # Supabase Storage သို့ ပုံအသစ်အား Upload တင်ခြင်း
+                                supabase.storage.from_("blacklist-images").upload(
+                                    path=storage_file_name,
+                                    file=file_data,
+                                    file_options={"content-type": f"image/{file_ext}"}
+                                )
+                                
+                                # ပုံအသစ်၏ Public URL လင့်ခ်ကို ရယူခြင်း
+                                final_photo_url = supabase.storage.from_("blacklist-images").get_public_url(storage_file_name)
+                                
+                            except Exception as e:
+                                st.error(f"⚠️ Error uploading new image: {str(e)}")
+                                
+                        # ဒေတာဘေ့စ်ထဲတွင် အချက်အလက်နှင့် ပုံလင့်ခ်အသစ်အား Update လုပ်ခြင်း
+                        update_data = {
+                            "full_name": new_name, 
+                            "nrc_number": new_nrc, 
+                            "reason": new_reason, 
+                            "Remark1": new_company, 
+                            "Remark2": new_address,
+                            "image_url": final_photo_url  # 📸 ပုံအသစ်ရှိလျှင် အသစ်ဝင်မည်၊ မတင်လျှင် ပုံဟောင်းအတိုင်းကျန်မည်
+                        }
+                        
+                        supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
+                        st.session_state[edit_key] = False
+                        st.success("Update Successfully with Image!")
+                        import time; time.sleep(1)
+                        st.rerun()
+                        
+                    if cancel_submitted:
+                        st.session_state[edit_key] = False
+                        st.rerun()
     if tab3:
         with tab3:
             st.subheader("📜 User Access Logs (Audit Trail)")
             
             @st.fragment(run_every=10)
             def show_auto_refresh_logs():
-                # 🌟 ပြင်ဆင်ချက် - အောက်က ကုဒ်တွေအားလုံးကို ရှေ့က Space (၄) ချက်စီ ပိုတွန်းပြီး Function ထဲ သွတ်သွင်းပေးလိုက်ပါတယ်ဗျာ
+                
                 with st.form("logs_filter_form"):
                     st.write("🔍 **Filter User Logs**")
                     col1, col2 = st.columns(2)
