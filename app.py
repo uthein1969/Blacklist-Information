@@ -481,7 +481,8 @@ def main_app():
                 st.session_state["edit_user_mode"] = False
                 st.session_state["edit_user_data"] = None
 
-            @st.fragment
+            # 🌟 ပြင်ဆင်ချက် ၁ - run_every=5 ထည့်သွင်းခြင်းဖြင့် ၅ စက္ကန့်တိုင်း အော်တို Refresh ဖြစ်စေပါသည်
+            @st.fragment(run_every=5)
             def manage_users_crud():
                 # ========================================================
                 # 1. READ & DISPLAY USERS (အသုံးပြုသူများစာရင်း ပြသခြင်း)
@@ -495,11 +496,16 @@ def main_app():
                     import pandas as pd
                     view_data = []
                     for u in users_list:
+                        # 🌟 ဖြည့်စွက်ချက် - NULL ဖြစ်နေလျှင် None မပြဘဲ "None" စာသား သန့်သန့်လေး ပြစေရန် ညှိလိုက်ပါသည်
+                        session_val = u.get("current_session_id")
+                        if session_val is None or session_val == "":
+                            session_val = "None"
+                            
                         view_data.append({
                             "(Name)": u.get("name", "-"),
                             "(Username)": u.get("username"),
                             "(Role)": str(u.get("role")).upper(),
-                            "(Current Session)": u.get("current_session_id", "No Active Session")
+                            "(Current Session)": session_val
                         })
                     df_users = pd.DataFrame(view_data)
                     st.write("📊 user list")
@@ -508,6 +514,12 @@ def main_app():
                     st.info("no users found in the system. Please add new users using the form below.")
                 
                 st.divider()
+
+            # ========================================================
+            # 🌟 ပြင်ဆင်ချက် ၂ - အရေးကြီးဆုံးအချက် (ဤနေရာတွင် Function အား လှမ်းခေါ်ရပါမည်)
+            # ========================================================
+            # def ဆောက်ထားရုံတင်မကဘဲ တကယ်အလုပ်လုပ်အောင် tab4 အောက်တည့်တည့်မှာ လှမ်းခေါ်ပေးလိုက်ခြင်း
+            manage_users_crud()
 
                 # ========================================================
                 # 2. CREATE (Add New) & UPDATE (Edit) FORM UI
