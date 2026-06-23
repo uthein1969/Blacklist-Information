@@ -265,7 +265,8 @@ def main_app():
                                     }
                                     supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
                                     st.session_state[edit_key] = False
-                                    st.success("ပြင်ဆင်ပြီးပါပြီ။")
+                                    st.success("Update Successfully")
+                                    import time
                                     time.sleep(1)
                                     st.rerun()
                             with f_col2:
@@ -273,7 +274,7 @@ def main_app():
                                     st.session_state[edit_key] = False
                                     st.rerun()
         else:
-            st.write("ဒေတာ မရှိသေးပါ။")
+            st.write("No Record")
     if tab3:
         with tab3:
             st.subheader("📜 User Access Logs (Audit Trail)")
