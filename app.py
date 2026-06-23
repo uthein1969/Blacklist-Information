@@ -119,7 +119,7 @@ def main_app():
         
         st.rerun()
 
-    st.header("🚫 Black List Information Management")
+    st.header("🚫 Blacklist Information Management")
     
     # --- Role ပေါ်မူတည်၍ Tabs Rights ခွဲခြားခြင်း ---
     if user_role == 'admin':
@@ -281,15 +281,36 @@ def main_app():
                 if edit_key not in st.session_state:
                     st.session_state[edit_key] = False
                 
-                # --- Dialog Function ---
-                @st.dialog("📸 NRC Photo View", width="large")
+                # --- Dialog Function (ပုံနှစ်ခါမပွားဘဲ ဘောင်နှင့် ကွက်တိဖြစ်စေမည့် အမှန်ကန်ဆုံးဗားရှင်း) ---
+                @st.dialog("📸 NRC Photo View", width="small")
                 def popup_image_dialog(url, name, dlg_id):
+                    st.html("""
+                        <style>
+                            [data-testid="stDialog"] > div > div {
+                                padding: 1rem 0rem 1rem 0rem !important;
+                            }
+                            /* စာသားလေး ဘေးဘောင်နှင့် ကပ်မနေစေရန် */
+                            [data-testid="stDialog"] .stMarkdown {
+                                padding-left: 1.5rem !important;
+                                padding-right: 1.5rem !important;
+                            }
+                        </style>
+                    """)
+                    
                     st.write(f"**Name:** {name}")
+                    
+                    # 🌟 ပြင်ဆင်ချက် ၁ - ဤနေရာတွင် container အကျယ်အတိုင်း ကွက်တိပြရန် st.image (တစ်လိုင်းတည်းသာ) ထားရှိပါသည်
+                    st.image(url, use_container_width=True)
+
+                    st.divider()
+                    
+                    # 🌟 ပြင်ဆင်ချက် ၂ - အောက်က ပုံအပိုကြီးကို ဖြုတ်လိုက်ပြီး Close ခလုတ်လေးကိုပဲ စမတ်ကျကျ အလယ်တည့်တည့် ညှိလိုက်ပါတယ်ဗျာ
                     col1, col2, col3 = st.columns([1, 2, 1])
                     with col2:
-                        st.image(url, width=400)
-                    if st.button("Close", key=f"close_dlg_{dlg_id}", use_container_width=True):
-                        st.rerun()
+                        if st.button("Close", key=f"close_dlg_{dlg_id}", use_container_width=True):
+                            st.rerun()
+                            
+                    st.write("") # အောက်ခြေ အနည်းငယ် လှပစေရန် Space ခံခြင်း
 
                 # --- Edit Mode မဟုတ်လျှင် (ပုံမှန်ပြသရန်) ---
                 if not st.session_state[edit_key]:
