@@ -16,50 +16,53 @@ def login_form():
     st.title("🚫 Black List Information System")
     st.subheader("Login to access the system")
 
+    # ၁။ Form UI ကို ဒေတာလက်ခံရန် သီးသန့်ဆောက်ခြင်း
     with st.form("login_form"):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submit_button = st.form_submit_button("Login")
 
-        if submit_button:
-            user_data = check_login(username, password)
-            if user_data:
-                import uuid
+    # 🌟 ဖြေရှင်းချက် - Submit Button နှိပ်လိုက်တဲ့ Logic တစ်ခုလုံးကို Form ၏ အပြင်ဘက်သို့ ထုတ်ယူလိုက်ခြင်း ဖြစ်ပါတယ်ဗျာ
+    if submit_button:
+        user_data = check_login(username, password)
+        if user_data:
+            import uuid
+            from datetime import datetime
+            import pytz
 
-                # 🌟 ထူးခြားတဲ့ Session ID တစ်ခု ထုတ်ခြင်း
-                new_session_id = str(uuid.uuid4())
-                from datetime import datetime
-                import pytz
-                tz = pytz.timezone('Asia/Yangon')
-                now_mm = datetime.now(tz).isoformat()
+            # ၁။ စနစ်တစ်ခုလုံးအတွက် Unique Session ID ထုတ်ယူခြင်း
+            unique_session_id = str(uuid.uuid4())
+    
+            # မြန်မာစံတော်ချိန် ရယူခြင်း
+            tz = pytz.timezone('Asia/Yangon')
+            now_mm = datetime.now(tz).isoformat()
 
-                
-                # ယခင်ပိတ်မိနေသော user_logs ဒေတာများကို ကန်ထုတ်ခံရသည့်အမှတ်အသားဖြင့် အလိုအလျောက် ပိတ်ပစ်ခြင်း
-                supabase.table("user_logs").update({
-                    "logout_time": now_mm,
-                    "session_id": f"Kicked Out (Multi-Browser) - {now_mm}"
-                }).eq("username", username).is_("logout_time", "null").execute()
+            # ၂။ ယခင်ပိတ်မိနေသော user_logs ဒေတာများကို ပိတ်ပစ်ခြင်း
+            supabase.table("user_logs").update({
+                "logout_time": now_mm,
+                "session_id": f"Kicked Out (Multi-Browser) - {now_mm}"
+            }).eq("username", username).is_("logout_time", "null").execute()
 
-                
-                # Supabase `users` table ထဲမှာ လက်ရှိ Session ID ကို လှမ်းပြီး Lock ခတ်လိုက်ခြင်း
-                supabase.table("users").update({"current_session_id": new_session_id}).eq("username", username).execute()
-                
-                # Streamlit Session State ထဲတွင်ပါ သိမ်းဆည်းခြင်း
-                st.session_state["logged_in"] = True
-                st.session_state["user_info"] = user_data[0]
-                st.session_state["user_info"]["current_session_id"] = new_session_id # ID အသစ်အား ထည့်သွင်းခြင်း
-                
-                # (လူကြီးမင်း၏ မူရင်း user_logs ထည့်သည့် ကုဒ်များကို ဤနေရာတွင် ဆက်ထားပါ...)
-                current_session = str(uuid.uuid4())
-                st.session_state["current_session_id"] = current_session
-                log_data = {"username": username, "session_id": current_session}
-                supabase.table("user_logs").insert(log_data).execute()
-                
-                st.success("Login successful!")
-                st.rerun() 
-            else:
-                st.error("Username or Password is incorrect.")
-
+            # 🔗 ၃။ Supabase `users` table အား UPDATE သွားလုပ်ခြင်း
+            supabase.table("users").update({"current_session_id": unique_session_id}).eq("username", username).execute()
+            
+            # ၄။ Streamlit Session State များထဲတွင် စနစ်တကျ တစ်သားတည်း သိမ်းဆည်းခြင်း
+            st.session_state["logged_in"] = True
+            st.session_state["user_info"] = user_data[0]
+            st.session_state["current_session_id"] = unique_session_id
+            
+            # 🔗 ၅။ user_logs table ထဲသို့ INSERT ဝင်စေခြင်း
+            log_data = {
+                "username": username, 
+                "session_id": unique_session_id
+            }
+            supabase.table("user_logs").insert(log_data).execute()
+            
+            # 🌟 Screen အဟောင်းကို လုံးဝ Flush ဖြစ်သွားအောင် Force Rerun လုပ်ခြင်း
+            st.success("Login successful!")
+            st.rerun() 
+        else:
+            st.error("Username or Password is incorrect.")
 def translate_numbers(text):
     mm_nums = "၀၁၂၃၄၅၆၇၈၉"
     en_nums = "0123456789"
@@ -68,10 +71,11 @@ def translate_numbers(text):
     return to_en, to_mm
 
 def main_app():
-    
-    if "user_info" in st.session_state:
+    if "user_info" in st.session_state and st.session_state.get("logged_in") == True:
         username = st.session_state["user_info"]["username"]
-        my_session_id = st.session_state["user_info"].get("current_session_id")
+        
+        # 🌟 ပြင်ဆင်ချက် ၁ - user_info ရဲ့အထဲကမဟုတ်ဘဲ Login ဝင်စဉ်က မှတ်ခဲ့သော ပင်မ Local Session ID အစစ်ကို ဆွဲယူခြင်း
+        my_session_id = st.session_state.get("current_session_id")
         
         # Database ထဲက လက်ရှိ Live ဖြစ်နေတဲ့ Session ID ကို လှမ်းစစ်ခြင်း
         db_user = supabase.table("users").select("current_session_id").eq("username", username).execute()
@@ -79,15 +83,17 @@ def main_app():
         if db_user.data:
             live_session_id = db_user.data[0].get("current_session_id")
             
-            # အကယ်၍ အခြား Browser တစ်ခုခုကနေ ဝင်လိုက်လို့ ID ချိန်းသွားခဲ့ရင် အလိုအလျောက် ကန်ထုတ်မည်
-            if live_session_id and my_session_id != live_session_id:
-                st.session_state["logged_in"] = False
-                st.session_state["user_info"] = None
-                st.error("⚠️ Your account has been accessed from another browser or location, so you have been logged out.")
-                import time
-                time.sleep(3)
-                st.rerun()
-
+            # 🌟 ပြင်ဆင်ချက် ၂ - Local ID ရော Database ID ပါ နှစ်ခုစလုံး ရှိနေမှသာ ကန်ထုတ်ရန် ယှဉ်စစ်ခြင်း (Login စက္ကန့်တွင် ငြိမတက်စေရန်)
+            if live_session_id and my_session_id:
+                if my_session_id != live_session_id:
+                    # အကယ်၍ အခြား Browser တစ်ခုခုကနေ ဝင်လိုက်လို့ ID ချိန်းသွားခဲ့ရင် အလိုအလျောက် ကန်ထုတ်မည်
+                    st.session_state["logged_in"] = False
+                    st.session_state["user_info"] = None
+                    st.session_state["current_session_id"] = None
+                    st.error("⚠️ Your account has been accessed from another browser or location, so you have been logged out.")
+                    import time; time.sleep(3)
+                    st.rerun()
+                    
     # ရရှိလာသော user_info ထဲမှ user_role ကို ရယူခြင်း (မပါရှိပါက default အနေဖြင့် 'user' ဟု ယူပါမည်)
     user_role = st.session_state['user_info'].get('role', 'user')
     
@@ -104,10 +110,13 @@ def main_app():
             
             # Supabase ထဲက သက်ဆိုင်ရာ session_id မှာ logout_time ကို လှမ်းထည့်ခြင်း
             supabase.table("user_logs").update({"logout_time": now_mm}).eq("session_id", st.session_state["current_session_id"]).execute()
+                               
+            current_username = st.session_state['user_info']['username']
+            supabase.table("users").update({"current_session_id": None}).eq("username", current_username).execute()
         
-        # Session ရှင်းထုတ်ပြီး ထွက်ခိုင်းခြင်း
-        st.session_state["logged_in"] = False
-        st.session_state["current_session_id"] = None
+        st.session_state.clear()
+        st.success("Logged out successfully!")
+        
         st.rerun()
 
     st.header("🚫 Black List Information Management")
@@ -123,7 +132,7 @@ def main_app():
         tab3 = None # User အတွက် logs tab ကို ပိတ်ထားပါမယ်
         tab4 = None # User အတွက် user management tab ကို ပိတ်ထားပါမယ်
 
-    # --- Tab 1: Add New Record (Admin Only) ---
+    
     # --- Tab 1: Add New Record (Admin Only) ---
     if tab1:
         with tab1:
