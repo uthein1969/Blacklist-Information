@@ -93,7 +93,7 @@ def main_app():
                     st.error("⚠️ Your account has been accessed from another browser or location, so you have been logged out.")
                     import time; time.sleep(3)
                     st.rerun()
-                    
+
     # ရရှိလာသော user_info ထဲမှ user_role ကို ရယူခြင်း (မပါရှိပါက default အနေဖြင့် 'user' ဟု ယူပါမည်)
     user_role = st.session_state['user_info'].get('role', 'user')
     
@@ -285,8 +285,10 @@ def main_app():
                 @st.dialog("📸 NRC Photo View", width="large")
                 def popup_image_dialog(url, name, dlg_id):
                     st.write(f"**Name:** {name}")
-                    st.image(url, use_container_width=True)
-                    if st.button("Close", key=f"close_dlg_{dlg_id}"):
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    with col2:
+                        st.image(url, width=400)
+                    if st.button("Close", key=f"close_dlg_{dlg_id}", use_container_width=True):
                         st.rerun()
 
                 # --- Edit Mode မဟုတ်လျှင် (ပုံမှန်ပြသရန်) ---
@@ -484,6 +486,7 @@ def main_app():
                 # ========================================================
                 # 1. READ & DISPLAY USERS (အသုံးပြုသူများစာရင်း ပြသခြင်း)
                 # ========================================================
+                st.cache_data.clear()
                 users_res = supabase.table("users").select("*").order("username").execute()
                 users_list = users_res.data if users_res.data else []
                 
