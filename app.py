@@ -22,47 +22,52 @@ def login_form():
         password = st.text_input("Password", type="password")
         submit_button = st.form_submit_button("Login")
 
-    # 🌟 ဖြေရှင်းချက် - Submit Button နှိပ်လိုက်တဲ့ Logic တစ်ခုလုံးကို Form ၏ အပြင်ဘက်သို့ ထုတ်ယူလိုက်ခြင်း ဖြစ်ပါတယ်ဗျာ
+    # 🌟 Submit Button နှိပ်လိုက်သည့် Logic
     if submit_button:
         user_data = check_login(username, password)
         if user_data:
             import uuid
-            from datetime import datetime
-            import pytz
-
+            
             # ၁။ စနစ်တစ်ခုလုံးအတွက် Unique Session ID ထုတ်ယူခြင်း
             unique_session_id = str(uuid.uuid4())
-    
-            # မြန်မာစံတော်ချိန် ရယူခြင်း
-            tz = pytz.timezone('Asia/Yangon')
-            now_mm = datetime.now(tz).isoformat()
+            
+            # ========================================================
+            # 🌟 ပြင်ဆင်ချက် ၁ - Multi-Browser တားဆီးရန် အဟောင်းကို ကန်ထုတ် (Kick Out) သည့် Logic စနစ်သစ်
+            # ========================================================
+            # Users Table ထဲတွင် လက်ရှိ ၎င်း Username ဖြင့် Active ဖြစ်နေသော Browser ရှိမရှိ အရင်စစ်ဆေးခြင်း
+            user_check = supabase.table("users").select("current_session_id").eq("username", username).execute()
+            
+            if user_check.data and user_check.data[0].get("current_session_id"):
+                old_session_id = user_check.data[0].get("current_session_id")
+                
+                # 💡 logout_time ကို လိုက်ပြင်မည့်အစား... အခြား Browser ကန်ထုတ်ခံရကြောင်း Row အသစ် (INSERT) သီးသန့် ကွက်တိမှတ်ပေးလိုက်ခြင်း
+                log_user_activity(
+                    username=username,
+                    action="Kicked Out (Multi-Browser Prevention)",
+                    status="Success",
+                    session_id=old_session_id
+                )
 
-            # ၂။ ယခင်ပိတ်မိနေသော user_logs ဒေတာများကို ပိတ်ပစ်ခြင်း
-            supabase.table("user_logs").update({
-                "logout_time": now_mm,
-                "session_id": f"Kicked Out (Multi-Browser) - {now_mm}"
-            }).eq("username", username).is_("logout_time", "null").execute()
-
-            # 🔗 ၃။ Supabase `users` table အား UPDATE သွားလုပ်ခြင်း
+            # 🔗 ၂။ Supabase `users` table အား UPDATE သွားလုပ်ခြင်း (Session သစ်လဲခြင်း)
             supabase.table("users").update({"current_session_id": unique_session_id}).eq("username", username).execute()
             
-            # ၄။ Streamlit Session State များထဲတွင် စနစ်တကျ တစ်သားတည်း သိမ်းဆည်းခြင်း
+            # ၃။ Streamlit Session State များထဲတွင် စနစ်တကျ တစ်သားတည်း သိမ်းဆည်းခြင်း
             st.session_state["logged_in"] = True
             st.session_state["user_info"] = user_data[0]
             st.session_state["current_session_id"] = unique_session_id
             
-            # 🔗 ၅။ user_logs table ထဲသို့ INSERT ဝင်စေခြင်း
-            log_data = {
-                "username": username, 
-                "session_id": unique_session_id
-            }
-            supabase.table("user_logs").insert(log_data).execute()
+            # 🔗 ၄။ user_logs table ထဲသို့ ဗိသုကာသစ်အတိုင်း အချိန်ရော Action ပါ တစ်ခါတည်း INSERT သွင်းခြင်း
+            # (မူရင်း log_data နှင့် insert() လိုင်းဟောင်းကြီးအား လုံးဝ ဖြုတ်ပစ်လိုက်ပါပြီဗျာ)
+            log_user_activity(username, action="Login", status="Success", session_id=unique_session_id)
             
             # 🌟 Screen အဟောင်းကို လုံးဝ Flush ဖြစ်သွားအောင် Force Rerun လုပ်ခြင်း
             st.success("Login successful!")
             st.rerun() 
         else:
+            # ၅။ Login Fail ဖြစ်လျှင်လည်း No Active Session ဖြင့် ကွက်တိမှတ်ပေးခြင်း
+            log_user_activity(username, action="Login", status="Fail")
             st.error("Username or Password is incorrect.")
+
 def translate_numbers(text):
     mm_nums = "၀၁၂၃၄၅၆၇၈၉"
     en_nums = "0123456789"
@@ -104,20 +109,31 @@ def main_app():
             from datetime import datetime
             import pytz
             
+            # --- Logout ခလုတ်နှိပ်သည့်နေရာရှိ အမှန်ကန်ဆုံးနှင့် အလုံခြုံဆုံး Logic ---
+            
             # မြန်မာစံတော်ချိန်ဖြင့် ထွက်သည့် အချိန်ကို ရယူခြင်း
             tz = pytz.timezone('Asia/Yangon')
             now_mm = datetime.now(tz).isoformat()
             
-            # Supabase ထဲက သက်ဆိုင်ရာ session_id မှာ logout_time ကို လှမ်းထည့်ခြင်း
-            supabase.table("user_logs").update({"logout_time": now_mm}).eq("session_id", st.session_state["current_session_id"]).execute()
-                               
             current_username = st.session_state['user_info']['username']
+            current_session_id = st.session_state["current_session_id"]
+            
+            # 🌟 ဖြေရှင်းချက် - အဟောင်းတွေကို Overwrite မဖြစ်စေရန် 
+            # log_user_activity ဖန်ရှင်ကို သုံးပြီး Logout Event အတွက် Row အသစ်သီးသန့် (INSERT) သွင်းပေးလိုက်ခြင်း ဖြစ်ပါတယ်ဗျာ
+            log_user_activity(
+                username=current_username,
+                action="Logout",
+                status="Success",
+                session_id=current_session_id
+            )
+            
+            # ၎င်းနောက်မှ Users Table ထဲက Session ID ကို NULL ချပစ်ခြင်း (မူရင်းအတိုင်း)
             supabase.table("users").update({"current_session_id": None}).eq("username", current_username).execute()
         
+        # စက်ထဲက Memory အားလုံးကို အပြီးသတ် ဖျက်ထုတ်ပြီး Page ကို Rerun လုပ်ခြင်း
         st.session_state.clear()
         st.success("Logged out successfully!")
-        
-        st.rerun()
+        st.rerun() 
 
     st.header("🚫 Blacklist Information Management")
     
@@ -202,16 +218,33 @@ def main_app():
                     # Database Table ထဲသို့ Insert လုပ်ခြင်း
                     response = supabase.table("blacklist_records").insert(data).execute()
                     
+                    # ========================================================
+                    # 🌟 ပြင်ဆင်ချက် ၁ - data (Payload) ထဲက full_name ကို ကွက်တိ ဆွဲထုတ်၍ Log မှတ်ခြင်း
+                    # ========================================================
+                    current_admin = st.session_state["user_info"]["username"]
+                    log_user_activity(
+                        username=current_admin, 
+                        # 💡 blacklist_payload အစား အပေါ်က သုံးထားတဲ့ data ကို ပြောင်းလဲအသုံးပြုလိုက်ပါတယ်ဗျာ
+                        action=f"Add New Record ({data.get('full_name', 'Unknown')})", 
+                        status="Success"
+                    )
+                    
+                    # ========================================================
+                    # 🌟 ပြင်ဆင်ချက် ၂ - အလှပြမည့် ကုဒ်များ အလုပ်လုပ်စေရန် အပေါ်က st.rerun() အပိုကို ဖြုတ်လိုက်ပါသည်
+                    # ========================================================
+                    
                     # အောင်မြင်ကြောင်း မက်ဆေ့ခ်ျအား စက္ကန့်ပိုင်းပြသပြီး မျက်နှာပြင်အား အော်တို Refresh လုပ်ခြင်း
                     msg_container = st.empty()
-                    msg_container.success(f"{name} data saved successfully with image!")
+                    # data ထဲက full_name ကို တိုက်ရိုက်ယူသုံးပြီး ပြသခြင်း
+                    msg_container.success(f"🎉 {data.get('full_name', 'Record')} data saved successfully with image!")
                     
-                    # 🌟 ပြင်ဆင်ချက် ၂ - time.sleep(2) ရှေ့တွင်လည်း import time ကို သီးသန့် အတင်းအကျပ် ထည့်သွင်းခြင်း
+                    # 🌟 time.sleep(2) အတွက် အတင်းအကျပ် import time လုပ်ခြင်း
                     import time
                     time.sleep(2)
                     
                     msg_container.empty()
-                    st.rerun()
+                    st.rerun()  # 💡 အားလုံး ပြီးမှသာ အောက်ဆုံးတွင် တစ်ခါတည်း အပြီးသတ် Rerun လုပ်ခိုင်းပါသည်
+                    
                 else:
                     st.warning("Must provide at least Name and Reason to save the record.")
 
@@ -336,7 +369,20 @@ def main_app():
                                 st.rerun()
                         with col2:
                             if st.button("🗑️ Delete", key=f"btn_del_{record['id']}", use_container_width=True):
+                                # 🌟 ဖြေရှင်းချက် - ဒေတာမဖျက်ခင် ၎င်း record ထဲတွင် ရှိပြီးသား full_name ကို တိုက်ရိုက်ဆွဲထုတ်ယူခြင်း
+                                deleted_name = record.get('full_name', f"ID: {record['id']}")
+                                
+                                # ၁။ ဒေတာဘေ့စ်ထဲမှ Blacklist Record အား အပြီးသတ်ဖျက်ခြင်း
                                 supabase.table("blacklist_records").delete().eq("id", record["id"]).execute()
+
+                                # ၂။ Audit Log ထဲသို့ Full Name ဖြင့် ကွက်တိ မှတ်တမ်းတင်ခြင်း
+                                current_admin = st.session_state["user_info"]["username"]
+                                log_user_activity(
+                                    username=current_admin, 
+                                    action=f"Delete Record ({deleted_name})",  # 💡 ဤနေရာတွင် နာမည်အတိုင်း တိုက်ရိုက်လှပစွာ ပေါ်လာပါမည်
+                                    status="Success"
+                                )
+                                
                                 st.success("Data Deleted Successfully!")
                                 import time; time.sleep(1)
                                 st.rerun()
@@ -360,13 +406,42 @@ def main_app():
                         
                         f_col1, f_col2 = st.columns(2)
                         with f_col1:
-                            # 🌟 ဖြေရှင်းချက် ၁ - ခလုတ်များတွင် ဘယ်သူနဲ့မှမထပ်မည့် Unique Key များ စနစ်တကျ တပ်ဆင်ခြင်း
                             update_submitted = st.form_submit_button("✅ Update", use_container_width=True, key=f"sub_upd_{record['id']}")
                         with f_col2:
                             cancel_submitted = st.form_submit_button("❌ Cancel", use_container_width=True, key=f"sub_can_{record['id']}")
                             
-                    # 🌟 ဖြေရှင်းချက် ၂ - ခလုတ်များ၏ လုပ်ဆောင်ချက် (Logic) ကို Form ၏ အပြင်ဘက်သို့ ထုတ်ယူခြင်း (with ရဲ့ အောက်တည့်တည့် Indent အတူတူ)
+                    # 🌟 ခလုတ်များ၏ လုပ်ဆောင်ချက် (Logic) ကို Form ၏ အပြင်ဘက်တွင် လုပ်ဆောင်ခြင်း
                     if update_submitted:
+                        
+                        # ========================================================
+                        # 🌟 ဖြေရှင်းချက် - တကယ် ပြောင်းလဲသွားသည့် ကွက်လပ် (Fields) များကိုသာ ရှာဖွေစစ်ထုတ်ခြင်း
+                        # ========================================================
+                        changes_list = []
+                        
+                        # ၁။ Name စစ်ဆေးခြင်း
+                        if record.get('full_name', '').strip() != new_name.strip():
+                            changes_list.append(f"Name: '{record.get('full_name')}' ➡️ '{new_name.strip()}'")
+                            
+                        # ၂။ NRC စစ်ဆေးခြင်း
+                        if record.get('nrc_number', '').strip() != new_nrc.strip():
+                            changes_list.append(f"NRC: '{record.get('nrc_number')}' ➡️ '{new_nrc.strip()}'")
+                            
+                        # ၃။ Company (Remark1) စစ်ဆေးခြင်း
+                        if record.get('Remark1', '').strip() != new_company.strip():
+                            changes_list.append(f"Company: '{record.get('Remark1')}' ➡️ '{new_company.strip()}'")
+                            
+                        # ၄။ Address (Remark2) စစ်ဆေးခြင်း
+                        if record.get('Remark2', '').strip() != new_address.strip():
+                            changes_list.append(f"Address: '{record.get('Remark2')}' ➡️ '{new_address.strip()}'")
+                            
+                        # ၅။ Reason စစ်ဆေးခြင်း
+                        if record.get('reason', '').strip() != new_reason.strip():
+                            changes_list.append(f"Reason: '{record.get('reason')}' ➡️ '{new_reason.strip()}'")
+                            
+                        # ၆။ ဓာတ်ပုံအသစ် တင်မတင် စစ်ဆေးခြင်း
+                        if edit_uploaded_file is not None:
+                            changes_list.append("📸 NRC Photo: 'Updated New Image'")
+
                         # မူလအစတွင် ဒေတာဘေ့စ်ထဲရှိ ပုံဟောင်း URL လင့်ခ်အတိုင်း ထားရှိမည်
                         final_photo_url = record.get("image_url")
                         
@@ -398,15 +473,33 @@ def main_app():
                                 
                         # ဒေတာဘေ့စ်ထဲတွင် အချက်အလက်နှင့် ပုံလင့်ခ်အသစ်အား Update လုပ်ခြင်း
                         update_data = {
-                            "full_name": new_name, 
-                            "nrc_number": new_nrc, 
-                            "reason": new_reason, 
-                            "Remark1": new_company, 
-                            "Remark2": new_address,
-                            "image_url": final_photo_url  # 📸 ပုံအသစ်ရှိလျှင် အသစ်ဝင်မည်၊ မတင်လျှင် ပုံဟောင်းအတိုင်းကျန်မည်
+                            "full_name": new_name.strip(), 
+                            "nrc_number": new_nrc.strip(), 
+                            "reason": new_reason.strip(), 
+                            "Remark1": new_company.strip(), 
+                            "Remark2": new_address.strip(),
+                            "image_url": final_photo_url
                         }
                         
                         supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
+
+                        # ========================================================
+                        # 🌟 ပြောင်းလဲမှု (Changes) ရှိမှသာ စာသားဆောက်၍ Audit Log မှတ်သားခြင်း
+                        # ========================================================
+                        if changes_list:
+                            # တကယ်ပြင်လိုက်တဲ့ အချက်အလက်တွေကိုပဲ Comma (,) ခံပြီး လှလှပပ ပြပေးမှာပါဗျာ
+                            full_audit_action = f"Update Record ({new_name.strip()}) | ⚙️ Changes: {', '.join(changes_list)}"
+                        else:
+                            # ဘာမှမပြင်ဘဲ ခလုတ်နှိပ်သွားလျှင် No data changed ဟုသာ မှတ်ပါမည်
+                            full_audit_action = f"Update Record ({new_name.strip()}) | No data changed"
+                        
+                        current_admin = st.session_state["user_info"]["username"]
+                        log_user_activity(
+                            username=current_admin, 
+                            action=full_audit_action, 
+                            status="Success"
+                        )
+
                         st.session_state[edit_key] = False
                         st.success("Update Successfully with Image!")
                         import time; time.sleep(1)
@@ -419,74 +512,89 @@ def main_app():
         with tab3:
             st.subheader("📜 User Access Logs (Audit Trail)")
             
+            # 🌟 ၁။ ISO Time မှ မြန်မာစံတော်ချိန်သို့ ပြောင်းလဲပေးမည့် ပင်မ Helper Function
+            def to_local_time(iso_str):
+                if not iso_str:
+                    return "N/A"
+                try:
+                    from datetime import datetime
+                    import pytz
+                    utc_dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
+                    mm_tz = pytz.timezone('Asia/Yangon')
+                    return utc_dt.astimezone(mm_tz).strftime('%Y-%m-%d %I:%M:%S %p')
+                except Exception:
+                    return iso_str
+
+            # 🌟 ၂။ Streamlit Fragment ဖြင့် ၁၀ စက္ကန့်တစ်ခါ ဇယားကိုသာ သီးသန့် Auto-Refresh လုပ်မည့်စနစ်
             @st.fragment(run_every=10)
             def show_auto_refresh_logs():
+                import pandas as pd
+                from datetime import datetime
                 
+                # --- FILTER FORM UI ---
                 with st.form("logs_filter_form"):
                     st.write("🔍 **Filter User Logs**")
                     col1, col2 = st.columns(2)
                     with col1:
                         search_username = st.text_input("Search by Username", placeholder="e.g., admin, 001")
                     with col2:
-                        # ရက်စွဲအလိုက် စစ်ထုတ်ချင်လျှင် သုံးရန်
                         filter_date = st.date_input("Select Date", value=None)
                 
                     filter_submitted = st.form_submit_button("Refresh & Filter Logs")
 
-                # --- Supabase Query for Logs ---
-                log_query = supabase.table("user_logs").select("*")
-                
-                if search_username:
-                    log_query = log_query.ilike("username", f"%{search_username}%")
-                
-                # Query အား id အလိုက် အသစ်ဆုံးကို အပေါ်ကပြရန် (desc=True)
-                logs_response = log_query.order("id", desc=True).execute()
-
-                if logs_response.data:
-                    import pandas as pd
-                    from datetime import datetime
-                    import pytz
-
-                    # ဒေတာများကို သပ်သပ်ရပ်ရပ် ပြသနိုင်ရန် List အသစ်တစ်ခု တည်ဆောက်ခြင်း
-                    formatted_logs = []
+                # --- SUPABASE QUERY (ဗိသုကာသစ်အတိုင်း Column များကို တောင်းဆိုခြင်း) ---
+                try:
+                    log_query = supabase.table("user_logs").select(
+                        "id", "username", "action", "status", "action_date_time", "session_id"
+                    )
                     
-                    for log in logs_response.data:
-                        # UTC Time မှ မြန်မာစံတော်ချိန်သို့ ပြောင်းလဲပြသရန် Function
-                        def to_local_time(iso_str):
-                            if not iso_str:
-                                return "Active Now"
-                            # UTC time အား ဖတ်ပြီး မြန်မာစံတော်ချိန် ပြောင်းခြင်း
-                            utc_dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
-                            mm_tz = pytz.timezone('Asia/Yangon')
-                            return utc_dt.astimezone(mm_tz).strftime('%Y-%m-%d %I:%M:%S %p')
+                    # Username Filter ပါက ထည့်သွင်းစစ်ထုတ်ခြင်း
+                    if search_username.strip():
+                        log_query = log_query.ilike("username", f"%{search_username.strip()}%")
+                    
+                    # ID အလိုက် အသစ်ဆုံးကို အပေါ်ကပြရန်
+                    logs_response = log_query.order("id", desc=True).execute()
 
-                        login_local = to_local_time(log['login_time'])
-                        logout_local = to_local_time(log['logout_time'])
+                    if logs_response.data:
+                        formatted_logs = []
+                        
+                        for log in logs_response.data:
+                            raw_time = log.get('action_date_time')
+                            action_time_local = to_local_time(raw_time)
 
-                        # ရက်စွဲ Filter ပါဝင်ပါက စစ်ထုတ်ခြင်း
-                        if filter_date:
-                            log_date_str = datetime.fromisoformat(log['login_time'].replace('Z', '+00:00')).strftime('%Y-%m-%d')
-                            if log_date_str != str(filter_date):
-                                continue # ရက်စွဲမတူပါက ကျော်သွားမည်
+                            # Date Filter ပါက action_date_time အပေါ် အခြေခံ၍ စစ်ထုတ်ခြင်း
+                            if filter_date and raw_time:
+                                try:
+                                    log_date_str = datetime.fromisoformat(raw_time.replace('Z', '+00:00')).strftime('%Y-%m-%d')
+                                    if log_date_str != str(filter_date):
+                                        continue  # ရက်စွဲမကိုက်ညီပါက ကျော်သွားမည်
+                                except Exception:
+                                    pass
 
-                        formatted_logs.append({
-                            "Log ID": log['id'],
-                            "(Username)": log['username'],
-                            "(Login Time)": login_local,
-                            "(Logout Time)": logout_local,
-                            "Session ID": log['session_id']
-                        })
+                            # ဇယားအသစ်ဒီဇိုင်းအတွက် ဒေတာများအား စနစ်တကျ စုစည်းခြင်း
+                            formatted_logs.append({
+                                "Log ID": log.get('id'),
+                                "Username": log.get('username'),
+                                "Action": log.get('action', 'N/A'),
+                                "Status": log.get('status', 'N/A'),
+                                "Date & Time (MM)": action_time_local,
+                                "Session ID": log.get('session_id')
+                            })
 
-                    if formatted_logs:
-                        df_logs = pd.DataFrame(formatted_logs)
-                        st.dataframe(df_logs, use_container_width=True, hide_index=True)
-                        st.caption(f"🔄 total logs: {len(df_logs)} (Auto-Refresh every 10 seconds)")
+                        # --- DATAFRAME UI DISPLAY ---
+                        if formatted_logs:
+                            df_logs = pd.DataFrame(formatted_logs)
+                            st.dataframe(df_logs, use_container_width=True, hide_index=True)
+                            st.caption(f"🔄 Total Logs: {len(df_logs)} (Auto-Refresh every 10 seconds)")
+                        else:
+                            st.info("No logs found for the given filter criteria.")
                     else:
-                        st.info("no logs found for the given filter criteria.")
-                else:
-                    st.write("no Logs data found.")
+                        st.info("No Logs data found in database.")
+                        
+                except Exception as e:
+                    st.error(f"❌ Error loading logs: {e}")
 
-            # 🌟 အရေးကြီးဆုံးအချက် - တည်ဆောက်ထားသော auto refresh function အား အောက်ဆုံးမှ ပြန်လည် ခေါ်ယူပတ်မောင်းခြင်း
+            # 🌟 ၃။ တည်ဆောက်ထားသော Fragment Function အား ဤနေရာမှ စတင်ပတ်မောင်းနှင်ခြင်း
             show_auto_refresh_logs()
 
     # ----------------------------------------------------
@@ -563,6 +671,11 @@ def main_app():
                                 update_payload["password"] = input_password
 
                             supabase.table("users").update(update_payload).eq("username", current_u.get("username")).execute()
+
+                            # 🌟 ၃။ ဝန်ထမ်းအကောင့်အား ပြင်ဆင်မှု အောင်မြင်ကြောင်း မှတ်ရန်
+                            current_admin = st.session_state["user_info"]["username"]
+                            log_user_activity(current_admin, action=f"Update User ({current_u.get('username')})", status="Success")
+
                             st.success(f"✨ Username: {current_u.get('username')} updated successfully!")
                             st.session_state["edit_user_mode"] = False
                             st.session_state["edit_user_data"] = None
@@ -590,6 +703,7 @@ def main_app():
                             else:
                                 check_exist = supabase.table("users").select("username").eq("username", new_username.strip()).execute()
                                 if check_exist.data:
+                                    log_user_activity(st.session_state["user_info"]["username"], action="Create User", status="Fail")
                                     st.error("⚠️ Username already exists. Please choose a different username.")
                                 else:
                                     insert_payload = {
@@ -600,6 +714,11 @@ def main_app():
                                         "current_session_id": None
                                     }
                                     supabase.table("users").insert(insert_payload).execute()
+                                    
+                                    # 🌟 အကောင့်သစ် ဆောက်တာ အောင်မြင်သွားကြောင်း မှတ်ရန်
+                                    current_admin = st.session_state["user_info"]["username"]
+                                    log_user_activity(current_admin, action=f"Create User ({new_username.strip()})", status="Success")
+                                    
                                     st.success(f"🎉 New user added successfully: {new_name} ({new_username})")
                                     st.rerun()
 
@@ -632,6 +751,11 @@ def main_app():
                         else:
                             if st.button("🗑️ delete selected account", use_container_width=True, type="secondary"):
                                 supabase.table("users").delete().eq("username", target_user_data.get("username")).execute()
+
+                                # 🌟 ၄။ ဝန်ထမ်းအကောင့်အား ဖျက်သိမ်းမှု အောင်မြင်ကြောင်း မှတ်ရန်
+                                current_admin = st.session_state["user_info"]["username"]
+                                log_user_activity(current_admin, action=f"Delete User ({target_user_data.get('username')})", status="Success")
+
                                 st.success(f"🗑️ Username: {target_user_data.get('username')} deleted successfully.")
                                 st.rerun()
 
@@ -640,45 +764,87 @@ def main_app():
             # ========================================================
             manage_users_crud()
 
+# 🌟 Column တစ်ခုတည်းဖြင့် အချိန်ကို သန့်ရှင်းစွာမှတ်ပေးမည့် Event-based Log Function
+def log_user_activity(username, action, status, session_id=None):
+    try:
+        import pytz
+        from datetime import datetime
+        
+        # မြန်မာစံတော်ချိန် လက်ရှိ Timestamp အား တိကျစွာ ရယူခြင်း
+        tz = pytz.timezone('Asia/Yangon')
+        now_mm = datetime.now(tz).isoformat()
+        
+        if not session_id:
+            session_id = st.session_state.get("current_session_id", "No Active Session")
+            
+        log_payload = {
+            "username": username,
+            "session_id": session_id,
+            "action": action,
+            "status": status,
+            "action_date_time": now_mm  # 🌟 ဘယ်အလုပ်မဆို ဤ Column တစ်ခုတည်း၌သာ အချိန်ကွက်တိမှတ်ပါမည်
+        }
+        supabase.table("user_logs").insert(log_payload).execute()
+    except Exception as e:
+        print(f"Log Error: {e}")
+
 # --- App Entry Point ---
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
 # ====================================================
-# 🌟 LOGOUT မလုပ်ဘဲ Close (X) လုပ်သွားသူများကို လိုက်ပြင်ပေးမည့် စနစ်
+# 🌟 LOGOUT မလုပ်ဘဲ Close (X) လုပ်သွားသူများကို လိုက်မှတ်ပေးမည့် စနစ်သစ်
 # ====================================================
 def auto_cleanup_expired_logs():
-    # Session State ကို သုံးပြီး တစ်နေ့တာအတွင်း (သို့မဟုတ်) တစ်ခေါက်ပဲ Run စေရန် Lock ခတ်ခြင်း
+    # Session State ကို သုံးပြီး တစ်ခေါက်ပဲ Run စေရန် Lock ခတ်ခြင်း
     if "cleanup_done" not in st.session_state:
         try:
             from datetime import datetime, timedelta
             import pytz
             
             tz = pytz.timezone('Asia/Yangon')
+            # ၃ နာရီထက် ကျော်လွန်နေသော အချိန်ကန့်သတ်ချက် သတ်မှတ်ခြင်း
             time_limit = datetime.now(tz) - timedelta(hours=3)
             time_limit_iso = time_limit.isoformat()
             
-            # Logout မရှိဘဲ ပိတ်မိနေသည့် session များကို ရှာခြင်း
-            expired_sessions = supabase.table("user_logs") \
-                .select("id") \
-                .is_("logout_time", "null") \
-                .lt("login_time", time_limit_iso) \
-                .execute()
-                
-            # တွေ့ရှိပါက "Tab Closed (X)" အဖြစ် ပြောင်းလဲခြင်း
-            if expired_sessions.data:
-                now_mm = datetime.now(tz).isoformat()
-                for session in expired_sessions.data:
-                    supabase.table("user_logs").update({
-                        "logout_time": now_mm,
-                        "session_id": f"Tab Closed (X) - {now_mm}"
-                    }).eq("id", session["id"]).execute()
+            # 🌟 ၁။ ၃ နာရီအတွင်း ဘာ Action မှမရှိတော့တဲ့ လတ်တလော Active ဖြစ်နေဆဲ Users များကို ရှာခြင်း
+            # users table ထဲတွင် current_session_id ရှိနေပြီး user_logs ထဲတွင် ၃ နာရီကျော် ဒေတာငြိမ်နေသူများကို စစ်ထုတ်ပါမည်
+            active_users = supabase.table("users").select("username", "current_session_id").not_.is_("current_session_id", "null").execute()
+            
+            if active_users.data:
+                for user in active_users.data:
+                    username = user["username"]
+                    session_id = user["current_session_id"]
+                    
+                    # ၎င်း Session ၏ နောက်ဆုံးလှုပ်ရှားမှုအချိန်ကို ရှာခြင်း
+                    last_log = supabase.table("user_logs") \
+                        .select("action_date_time") \
+                        .eq("session_id", session_id) \
+                        .order("id", descending=True) \
+                        .limit(1) \
+                        .execute()
+                        
+                    if last_log.data:
+                        last_action_time = last_log.data[0]["action_date_time"]
+                        
+                        # 🌟 ၂။ အကယ်၍ နောက်ဆုံးလှုပ်ရှားခဲ့သည့်အချိန်သည် ၃ နာရီထက် ကျော်လွန်နောက်ကျနေပါက
+                        if last_action_time < time_limit_iso:
+                            
+                            # (က) user_logs table ထဲသို့ Browser ပိတ်သွားကြောင်း Row အသစ် (INSERT) သီးသန့်မှတ်ခြင်း
+                            log_user_activity(
+                                username=username,
+                                action="Session Expired (Tab Closed / Inactive)",
+                                status="Success",
+                                session_id=session_id
+                            )
+                            
+                            # (ခ) Users Table ထဲက ပိတ်မိနေသော Session ID အား NULL ချ၍ ကန်ထုတ်ခြင်း
+                            supabase.table("users").update({"current_session_id": None}).eq("username", username).execute()
             
             # သန့်ရှင်းရေးလုပ်ပြီးကြောင်း အမှတ်အသားပြုခြင်း
             st.session_state["cleanup_done"] = True
         except Exception as e:
-            pass
-
+            print(f"Cleanup Error: {e}")
 # --- App Entry Point ---
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
