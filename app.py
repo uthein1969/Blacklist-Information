@@ -139,13 +139,26 @@ def main_app():
     
     # --- Role ပေါ်မူတည်၍ Tabs Rights ခွဲခြားခြင်း ---
     if user_role == 'admin':
-        # Admin ဖြစ်ပါက ဒေတာသွင်းခြင်း နှင့် ဒေတာကြည့်ခြင်း Tab ၂ ခုစလုံး ပြပါမည်
-        tab1, tab2, tab3, tab4 = st.tabs(["➕ Add New Record", "📊 View Records", "📜 User Logs", "👥 User Management"])
+        # Admin ဖြစ်ပါက Tabs အားလုံး (၄) ခုစလုံးကို အပြည့်အဝ မြင်တွေ့ရပါမည်
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "➕ Add New Record", 
+            "📊 View Records", 
+            "📜 User Logs", 
+            "👥 User Management"
+        ])
+    elif user_role == 'super':
+        # Super Level ဖြစ်ပါက Add New Record နှင့် View Records Tabs (၂) ခုကို အသုံးပြုခွင့်ပေးပါမည် ✨
+        tab1, tab2 = st.tabs([
+            "➕ Add New Record", 
+            "📊 View Records"
+        ])
+        tab3 = None # Super အတွက် logs tab အား ပိတ်ထားပါမည်
+        tab4 = None # Super အတွက် user management tab အား ပိတ်ထားပါမည်
     else:
-        # User ဖြစ်ပါက View Records တစ်ခုတည်းကိုသာ Single Tab အနေဖြင့် ပြပါမည်
+        # သာမန် User ဖြစ်ပါက View Records တစ်ခုတည်းကိုသာ Single Tab အနေဖြင့် ပြပါမည်
         tab2, = st.tabs(["📊 View Records"])
         tab1 = None
-        tab3 = None # User အတွက် logs tab ကို ပိတ်ထားပါမယ်
+        tab3 = None 
         tab4 = None # User အတွက် user management tab ကို ပိတ်ထားပါမယ်
 
     
@@ -255,14 +268,38 @@ def main_app():
         def reset_page():
             st.session_state.current_page = 1
 
-        # Search UI
+        # 🌟 ၁။ Dialog Function (စက်မလေးစေရန်နှင့် ပေါ့ပ်အက်ပ် ကောင်းမွန်စွာအလုပ်လုပ်ရန် ထိပ်ဆုံးတွင် သီးသန့်ဆောက်ထားပါသည်)
+        @st.dialog("📸 NRC Photo View", width="small")
+        def popup_image_dialog(url, name, dlg_id):
+            st.html("""
+                <style>
+                    [data-testid="stDialog"] > div > div {
+                        padding: 1rem 0rem 1rem 0rem !important;
+                    }
+                    [data-testid="stDialog"] .stMarkdown {
+                        padding-left: 1.5rem !important;
+                        padding-right: 1.5rem !important;
+                    }
+                </style>
+            """)
+            st.write(f"**Name:** {name}")
+            st.image(url, use_container_width=True)
+            st.divider()
+            
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button("Close", key=f"close_dlg_{dlg_id}", use_container_width=True):
+                    st.rerun()
+            st.write("")
+
+        # --- Search UI ---
         search_col1, search_col2 = st.columns(2)
         with search_col1:
             name_search = st.text_input("🔍 Search by Name", placeholder="Name", on_change=reset_page)
         with search_col2:
             search_query = st.text_input("🔍 Search by NRC/PB", placeholder="NRC/PB", on_change=reset_page)
         
-        # Database Query
+        # --- Database Query ---
         query = supabase.table("blacklist_records").select("*")
         if name_search:
             query = query.ilike("full_name", f"%{name_search}%")
@@ -272,8 +309,8 @@ def main_app():
         
         records = query.order("id", desc=False).execute()
 
-        # Pagination Logic
-        if records.data:
+        # 🌟 ၂။ ဒေတာ တကယ်ရှိမရှိကို ဦးစွာ စစ်ဆေးခြင်း (UnboundLocalError အား ရာနှုန်းပြည့်ကာကွယ်သည့်စနစ်)
+        if records.data and len(records.data) > 0:
             total_items = len(records.data)
             items_per_page = 10
             total_pages = max(1, (total_items + items_per_page - 1) // items_per_page)
@@ -284,6 +321,7 @@ def main_app():
             if st.session_state.current_page > total_pages:
                 st.session_state.current_page = 1
 
+            # --- Pagination Buttons UI ---
             page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
             with page_col1:
                 if st.button("⬅️ Previous") and st.session_state.current_page > 1:
@@ -298,216 +336,135 @@ def main_app():
                     st.session_state.current_page += 1
                     st.rerun()
             
+            # ဒေတာများအား စာမျက်နှာအလိုက် ခွဲထုတ်ခြင်း (Slice လုပ်ခြင်း)
             start_idx = (st.session_state.current_page - 1) * items_per_page
             end_idx = start_idx + items_per_page
             page_data = records.data[start_idx:end_idx]
 
             st.divider()
             
-            # 🌟 ဤလိုင်းအောက်ရှိ ကုဒ်အားလုံးကို ညာဘက်သို့ Space (၄) ချက်စီ ညီညာစွာ တွန်းရွှေ့ပေးလိုက်ပါပြီဗျာ
-        for i, record in enumerate(page_data, start=start_idx + 1):
-            raw_nrc = str(record['nrc_number']).strip() if record['nrc_number'] else ""
-            prefix = "NRC" if raw_nrc and raw_nrc[0].isdigit() else "PB"
-            
-            with st.expander(f"{i} 👤 {record['full_name']} ({prefix}: {raw_nrc})"):
-                edit_key = f"edit_mode_{record['id']}"
-                if edit_key not in st.session_state:
-                    st.session_state[edit_key] = False
+            # --- ပင်မ Logic စနစ်ဖြင့် ဒေတာများအား Expander ထဲတွင် ပတ်မောင်းပြသခြင်း ---
+            for i, record in enumerate(page_data, start=start_idx + 1):
+                raw_nrc = str(record['nrc_number']).strip() if record['nrc_number'] else ""
+                prefix = "NRC" if raw_nrc and raw_nrc[0].isdigit() else "PB"
                 
-                # --- Dialog Function (ပုံနှစ်ခါမပွားဘဲ ဘောင်နှင့် ကွက်တိဖြစ်စေမည့် အမှန်ကန်ဆုံးဗားရှင်း) ---
-                @st.dialog("📸 NRC Photo View", width="small")
-                def popup_image_dialog(url, name, dlg_id):
-                    st.html("""
-                        <style>
-                            [data-testid="stDialog"] > div > div {
-                                padding: 1rem 0rem 1rem 0rem !important;
-                            }
-                            /* စာသားလေး ဘေးဘောင်နှင့် ကပ်မနေစေရန် */
-                            [data-testid="stDialog"] .stMarkdown {
-                                padding-left: 1.5rem !important;
-                                padding-right: 1.5rem !important;
-                            }
-                        </style>
-                    """)
+                with st.expander(f"{i} 👤 {record['full_name']} ({prefix}: {raw_nrc})"):
+                    edit_key = f"edit_mode_{record['id']}"
+                    if edit_key not in st.session_state:
+                        st.session_state[edit_key] = False
                     
-                    st.write(f"**Name:** {name}")
-                    
-                    # 🌟 ပြင်ဆင်ချက် ၁ - ဤနေရာတွင် container အကျယ်အတိုင်း ကွက်တိပြရန် st.image (တစ်လိုင်းတည်းသာ) ထားရှိပါသည်
-                    st.image(url, use_container_width=True)
+                    # 👉 [က] Edit Mode မဟုတ်လျှင် (ပုံမှန် Mode ဖြင့် ဒေတာနှင့် ခလုတ်များပြသရန်)
+                    if not st.session_state[edit_key]:
+                        st.write(f"**Reason:** {record['reason']}")
+                        st.write(f"**Listed by:** {record['blacklisted_by']}")
+                        st.write(f"**Company:** {record['Remark1']}")
+                        st.write(f"**Address:** {record['Remark2']}")
+                        
+                        # 📸 ဓာတ်ပုံလင့်ခ် စစ်ဆေးခြင်း
+                        if record.get("image_url"):
+                            if st.button("📸 View Image", key=f"btn_img_{record['id']}", use_container_width=True, type="secondary"):
+                                popup_image_dialog(record["image_url"], record.get("full_name", "Unknown"), record['id'])
+                        else:
+                            st.button("❌ No Image Available", key=f"btn_no_img_{record['id']}", use_container_width=True, disabled=True)
 
-                    st.divider()
-                    
-                    # 🌟 ပြင်ဆင်ချက် ၂ - အောက်က ပုံအပိုကြီးကို ဖြုတ်လိုက်ပြီး Close ခလုတ်လေးကိုပဲ စမတ်ကျကျ အလယ်တည့်တည့် ညှိလိုက်ပါတယ်ဗျာ
-                    col1, col2, col3 = st.columns([1, 2, 1])
-                    with col2:
-                        if st.button("Close", key=f"close_dlg_{dlg_id}", use_container_width=True):
+                        st.write("") # Space ခံခြင်း
+
+                        # 🔗 Admin ဖြစ်ပါက📝 Edit / 🗑️ Delete ခလုတ်များအား နေရာမှန်ပြသခြင်း
+                        if user_role == 'admin':
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("📝 Edit", key=f"btn_edit_{record['id']}", use_container_width=True):
+                                    st.session_state[edit_key] = True
+                                    st.rerun()
+                            with col2:
+                                if st.button("🗑️ Delete", key=f"btn_del_{record['id']}", use_container_width=True):
+                                    deleted_name = record.get('full_name', f"ID: {record['id']}")
+                                    supabase.table("blacklist_records").delete().eq("id", record["id"]).execute()
+
+                                    current_admin = st.session_state["user_info"]["username"]
+                                    log_user_activity(
+                                        username=current_admin, 
+                                        action=f"Delete Record ({deleted_name})", 
+                                        status="Success"
+                                    )
+                                    st.success("Data Deleted Successfully!")
+                                    import time; time.sleep(1)
+                                    st.rerun()
+                        else:
+                            st.caption("🔒 View Only Mode (Admin access required to Edit/Delete)")
+
+                    # 👉 [ခ] Edit Mode ဖြစ်နေလျှင် (ဝန်ထမ်း အချက်အလက်ပြင်ဆင်ရန် Form ပြသခြင်း)
+                    else:
+                        with st.form(key=f"form_edit_{record['id']}"):
+                            new_name = st.text_input("Name", value=record['full_name'])
+                            new_nrc = st.text_input("NRC", value=record['nrc_number'])
+                            new_company = st.text_input("Company", value=record['Remark1'])
+                            new_address = st.text_input("Address", value=record['Remark2'])
+                            new_reason = st.text_area("Reason", value=record['reason'])
+                            
+                            edit_uploaded_file = st.file_uploader("📸 Change NRC Photo", type=["png", "jpg", "jpeg"], key=f"file_edit_{record['id']}")
+                            
+                            f_col1, f_col2 = st.columns(2)
+                            with f_col1:
+                                update_submitted = st.form_submit_button("✅ Update", use_container_width=True, key=f"sub_upd_{record['id']}")
+                            with f_col2:
+                                cancel_submitted = st.form_submit_button("❌ Cancel", use_container_width=True, key=f"sub_can_{record['id']}")
+                                
+                        # Update ခလုတ် နှိပ်လိုက်သည့် လုပ်ဆောင်ချက် Logic
+                        if update_submitted:
+                            changes_list = []
+                            if record.get('full_name', '').strip() != new_name.strip():
+                                changes_list.append(f"Name: '{record.get('full_name')}' ➡️ '{new_name.strip()}'")
+                            if record.get('nrc_number', '').strip() != new_nrc.strip():
+                                changes_list.append(f"NRC: '{record.get('nrc_number')}' ➡️ '{new_nrc.strip()}'")
+                            if record.get('Remark1', '').strip() != new_company.strip():
+                                changes_list.append(f"Company: '{record.get('Remark1')}' ➡️ '{new_company.strip()}'")
+                            if record.get('Remark2', '').strip() != new_address.strip():
+                                changes_list.append(f"Address: '{record.get('Remark2')}' ➡️ '{new_address.strip()}'")
+                            if record.get('reason', '').strip() != new_reason.strip():
+                                changes_list.append(f"Reason: '{record.get('reason')}' ➡️ '{new_reason.strip()}'")
+                            if edit_uploaded_file is not None:
+                                changes_list.append("📸 NRC Photo: 'Updated New Image'")
+
+                            final_photo_url = record.get("image_url")
+                            if edit_uploaded_file is not None:
+                                try:
+                                    file_ext = edit_uploaded_file.name.split(".")[-1]
+                                    clean_nrc = new_nrc.strip().replace("/", "_").replace("(", "_").replace(")", "_").replace(" ", "")
+                                    if not clean_nrc: clean_nrc = "unknown"
+                                    import time
+                                    storage_file_name = f"nrc_{clean_nrc}_{int(time.time())}.{file_ext}"
+                                    supabase.storage.from_("blacklist-images").upload(path=storage_file_name, file=edit_uploaded_file.getvalue(), file_options={"content-type": f"image/{file_ext}"})
+                                    final_photo_url = supabase.storage.from_("blacklist-images").get_public_url(storage_file_name)
+                                except Exception as e:
+                                    st.error(f"⚠️ Error uploading image: {str(e)}")
+                                    
+                            update_data = {
+                                "full_name": new_name.strip(), "nrc_number": new_nrc.strip(), "reason": new_reason.strip(),
+                                "Remark1": new_company.strip(), "Remark2": new_address.strip(), "image_url": final_photo_url
+                            }
+                            supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
+
+                            # ပြောင်းလဲမှုရှိမှသာ စုံစုံလင်လင် Log မှတ်မည့်စနစ်
+                            if changes_list:
+                                full_audit_action = f"Update Record ({new_name.strip()}) | ⚙️ Changes: {', '.join(changes_list)}"
+                            else:
+                                full_audit_action = f"Update Record ({new_name.strip()}) | No data changed"
+                            
+                            current_admin = st.session_state["user_info"]["username"]
+                            log_user_activity(username=current_admin, action=full_audit_action, status="Success")
+                            st.session_state[edit_key] = False
+                            st.success("Update Successfully!")
+                            import time; time.sleep(1)
                             st.rerun()
                             
-                    st.write("") # အောက်ခြေ အနည်းငယ် လှပစေရန် Space ခံခြင်း
+                        if cancel_submitted:
+                            st.session_state[edit_key] = False
+                            st.rerun()
+        else:
+            # 🌟 ၃။ ရှာဖွေသောဒေတာ လုံးဝဗလာဖြစ်နေလျှင် လှလှပပပြသမည့် Message နေရာမှန်
+            st.info("🔍 ရှာဖွေထားသော အချက်အလက် မရှိပါဗျာ။ (No records found matching your search.)")
 
-                # --- Edit Mode မဟုတ်လျှင် (ပုံမှန်ပြသရန်) ---
-                if not st.session_state[edit_key]:
-                    st.write(f"**Reason:** {record['reason']}")
-                    st.write(f"**Listed by:** {record['blacklisted_by']}")
-                    st.write(f"**Company:** {record['Remark1']}")
-                    st.write(f"**Address:** {record['Remark2']}")
-                    
-                    if record.get("image_url"):
-                        if st.button("📸 View Image", key=f"btn_img_{record['id']}", use_container_width=True, type="secondary"):
-                            popup_image_dialog(record["image_url"], record.get("full_name", "Unknown"), record['id'])
-                    else:
-                        st.button("❌ No Image Available", key=f"btn_no_img_{record['id']}", use_container_width=True, disabled=True)
-
-                    st.write("") 
-
-                    # --- Admin Logic ---
-                    if user_role == 'admin':
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("📝 Edit", key=f"btn_edit_{record['id']}", use_container_width=True):
-                                st.session_state[edit_key] = True
-                                st.rerun()
-                        with col2:
-                            if st.button("🗑️ Delete", key=f"btn_del_{record['id']}", use_container_width=True):
-                                # 🌟 ဖြေရှင်းချက် - ဒေတာမဖျက်ခင် ၎င်း record ထဲတွင် ရှိပြီးသား full_name ကို တိုက်ရိုက်ဆွဲထုတ်ယူခြင်း
-                                deleted_name = record.get('full_name', f"ID: {record['id']}")
-                                
-                                # ၁။ ဒေတာဘေ့စ်ထဲမှ Blacklist Record အား အပြီးသတ်ဖျက်ခြင်း
-                                supabase.table("blacklist_records").delete().eq("id", record["id"]).execute()
-
-                                # ၂။ Audit Log ထဲသို့ Full Name ဖြင့် ကွက်တိ မှတ်တမ်းတင်ခြင်း
-                                current_admin = st.session_state["user_info"]["username"]
-                                log_user_activity(
-                                    username=current_admin, 
-                                    action=f"Delete Record ({deleted_name})",  # 💡 ဤနေရာတွင် နာမည်အတိုင်း တိုက်ရိုက်လှပစွာ ပေါ်လာပါမည်
-                                    status="Success"
-                                )
-                                
-                                st.success("Data Deleted Successfully!")
-                                import time; time.sleep(1)
-                                st.rerun()
-                    else:
-                        st.caption("🔒 View Only Mode (Admin access required to Edit/Delete)")
-                
-                # ========================================================
-                # Edit Mode ဖြစ်နေလျှင် (Form ပြရန် - Admin သီးသန့်)
-                # ========================================================
-                else:
-                    # ၁။ Form UI တည်ဆောက်ခြင်း (ဒေတာများနှင့် File Uploader သီးသန့်ပြသမည်)
-                    with st.form(key=f"form_edit_{record['id']}"):
-                        new_name = st.text_input("Name", value=record['full_name'])
-                        new_nrc = st.text_input("NRC", value=record['nrc_number'])
-                        new_company = st.text_input("Company", value=record['Remark1'])
-                        new_address = st.text_input("Address", value=record['Remark2'])
-                        new_reason = st.text_area("Reason", value=record['reason'])
-                        
-                        # 📸 ဓာတ်ပုံအသစ်လဲရန် File Uploader
-                        edit_uploaded_file = st.file_uploader("📸 Change NRC Photo (ပုံအသစ်လဲလိုပါက ရွေးချယ်ပါ)", type=["png", "jpg", "jpeg"], key=f"file_edit_{record['id']}")
-                        
-                        f_col1, f_col2 = st.columns(2)
-                        with f_col1:
-                            update_submitted = st.form_submit_button("✅ Update", use_container_width=True, key=f"sub_upd_{record['id']}")
-                        with f_col2:
-                            cancel_submitted = st.form_submit_button("❌ Cancel", use_container_width=True, key=f"sub_can_{record['id']}")
-                            
-                    # 🌟 ခလုတ်များ၏ လုပ်ဆောင်ချက် (Logic) ကို Form ၏ အပြင်ဘက်တွင် လုပ်ဆောင်ခြင်း
-                    if update_submitted:
-                        
-                        # ========================================================
-                        # 🌟 ဖြေရှင်းချက် - တကယ် ပြောင်းလဲသွားသည့် ကွက်လပ် (Fields) များကိုသာ ရှာဖွေစစ်ထုတ်ခြင်း
-                        # ========================================================
-                        changes_list = []
-                        
-                        # ၁။ Name စစ်ဆေးခြင်း
-                        if record.get('full_name', '').strip() != new_name.strip():
-                            changes_list.append(f"Name: '{record.get('full_name')}' ➡️ '{new_name.strip()}'")
-                            
-                        # ၂။ NRC စစ်ဆေးခြင်း
-                        if record.get('nrc_number', '').strip() != new_nrc.strip():
-                            changes_list.append(f"NRC: '{record.get('nrc_number')}' ➡️ '{new_nrc.strip()}'")
-                            
-                        # ၃။ Company (Remark1) စစ်ဆေးခြင်း
-                        if record.get('Remark1', '').strip() != new_company.strip():
-                            changes_list.append(f"Company: '{record.get('Remark1')}' ➡️ '{new_company.strip()}'")
-                            
-                        # ၄။ Address (Remark2) စစ်ဆေးခြင်း
-                        if record.get('Remark2', '').strip() != new_address.strip():
-                            changes_list.append(f"Address: '{record.get('Remark2')}' ➡️ '{new_address.strip()}'")
-                            
-                        # ၅။ Reason စစ်ဆေးခြင်း
-                        if record.get('reason', '').strip() != new_reason.strip():
-                            changes_list.append(f"Reason: '{record.get('reason')}' ➡️ '{new_reason.strip()}'")
-                            
-                        # ၆။ ဓာတ်ပုံအသစ် တင်မတင် စစ်ဆေးခြင်း
-                        if edit_uploaded_file is not None:
-                            changes_list.append("📸 NRC Photo: 'Updated New Image'")
-
-                        # မူလအစတွင် ဒေတာဘေ့စ်ထဲရှိ ပုံဟောင်း URL လင့်ခ်အတိုင်း ထားရှိမည်
-                        final_photo_url = record.get("image_url")
-                        
-                        # အကယ်၍ အသုံးပြုသူက ပုံအသစ် ရွေးချယ်တင်လိုက်လျှင်
-                        if edit_uploaded_file is not None:
-                            try:
-                                file_ext = edit_uploaded_file.name.split(".")[-1]
-                                clean_nrc = new_nrc.strip().replace("/", "_").replace("(", "_").replace(")", "_").replace(" ", "")
-                                if not clean_nrc:
-                                    clean_nrc = "unknown"
-                                    
-                                import time
-                                unique_timestamp = int(time.time())
-                                storage_file_name = f"nrc_{clean_nrc}_{unique_timestamp}.{file_ext}"
-                                file_data = edit_uploaded_file.getvalue()
-                                
-                                # Supabase Storage သို့ ပုံအသစ်အား Upload တင်ခြင်း
-                                supabase.storage.from_("blacklist-images").upload(
-                                    path=storage_file_name,
-                                    file=file_data,
-                                    file_options={"content-type": f"image/{file_ext}"}
-                                )
-                                
-                                # ပုံအသစ်၏ Public URL လင့်ခ်ကို ရယူခြင်း
-                                final_photo_url = supabase.storage.from_("blacklist-images").get_public_url(storage_file_name)
-                                
-                            except Exception as e:
-                                st.error(f"⚠️ Error uploading new image: {str(e)}")
-                                
-                        # ဒေတာဘေ့စ်ထဲတွင် အချက်အလက်နှင့် ပုံလင့်ခ်အသစ်အား Update လုပ်ခြင်း
-                        update_data = {
-                            "full_name": new_name.strip(), 
-                            "nrc_number": new_nrc.strip(), 
-                            "reason": new_reason.strip(), 
-                            "Remark1": new_company.strip(), 
-                            "Remark2": new_address.strip(),
-                            "image_url": final_photo_url
-                        }
-                        
-                        supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
-
-                        # ========================================================
-                        # 🌟 ပြောင်းလဲမှု (Changes) ရှိမှသာ စာသားဆောက်၍ Audit Log မှတ်သားခြင်း
-                        # ========================================================
-                        if changes_list:
-                            # တကယ်ပြင်လိုက်တဲ့ အချက်အလက်တွေကိုပဲ Comma (,) ခံပြီး လှလှပပ ပြပေးမှာပါဗျာ
-                            full_audit_action = f"Update Record ({new_name.strip()}) | ⚙️ Changes: {', '.join(changes_list)}"
-                        else:
-                            # ဘာမှမပြင်ဘဲ ခလုတ်နှိပ်သွားလျှင် No data changed ဟုသာ မှတ်ပါမည်
-                            full_audit_action = f"Update Record ({new_name.strip()}) | No data changed"
-                        
-                        current_admin = st.session_state["user_info"]["username"]
-                        log_user_activity(
-                            username=current_admin, 
-                            action=full_audit_action, 
-                            status="Success"
-                        )
-
-                        st.session_state[edit_key] = False
-                        st.success("Update Successfully with Image!")
-                        import time; time.sleep(1)
-                        st.rerun()
-                        
-                    if cancel_submitted:
-                        st.session_state[edit_key] = False
-                        st.rerun()
     if tab3:
         with tab3:
             st.subheader("📜 User Access Logs (Audit Trail)")
@@ -654,7 +611,7 @@ def main_app():
                         input_name = st.text_input("Name", value=current_u.get("name", ""))
                         st.text_input("Username (No Edit)", value=current_u.get("username"), disabled=True)
                         input_password = st.text_input("New Password", type="password", placeholder="New Password")
-                        input_role = st.selectbox("Role", ["user", "admin"], index=0 if current_u.get("role") == "user" else 1)
+                        input_role = st.selectbox("Role", ["user", "super", "admin"], index=0 if current_u.get("role") == "user" else (1 if current_u.get("role") == "super" else 2))
                         
                         col_f1, col_f2 = st.columns(2)
                         with col_f1:
@@ -673,10 +630,42 @@ def main_app():
                             supabase.table("users").update(update_payload).eq("username", current_u.get("username")).execute()
 
                             # 🌟 ၃။ ဝန်ထမ်းအကောင့်အား ပြင်ဆင်မှု အောင်မြင်ကြောင်း မှတ်ရန်
-                            current_admin = st.session_state["user_info"]["username"]
-                            log_user_activity(current_admin, action=f"Update User ({current_u.get('username')})", status="Success")
+                            # ========================================================
+                            # ========================================================
+                            # 🌟 ဖြေရှင်းချက် - တကယ်ပြောင်းလဲသွားသည့် အချက်အလက်များကိုသာ စစ်ထုတ်ခြင်း
+                            # ========================================================
+                            user_changes = []
+                            target_username = current_u.get('username', 'Unknown')
 
-                            st.success(f"✨ Username: {current_u.get('username')} updated successfully!")
+                            # ၁။ နာမည် (Name) ပြောင်းလဲမှု ရှိမရှိ စစ်ဆေးခြင်း
+                            old_name = current_u.get('name', '').strip()
+                            if old_name != input_name.strip():
+                                user_changes.append(f"Name: '{old_name}' ➡️ '{input_name.strip()}'")
+
+                            # ၂။ ရာထူး (Role) ပြောင်းလဲမှု ရှိမရှိ စစ်ဆေးခြင်း
+                            old_role = current_u.get('role', '').strip()
+                            if old_role != input_role.strip():
+                                user_changes.append(f"Role: '{old_role}' ➡️ '{input_role.strip()}'")
+
+                            # ၃။ စကားဝှက် (Password) အသစ်လဲလိုက်ခြင်း ရှိမရှိ စစ်ဆေးခြင်း
+                            if input_password.strip(): # Password ကွက်လပ်ထဲ စာရိုက်ထည့်ထားမှသာ မှတ်မည်
+                                user_changes.append("🔑 Password: 'Changed to New Password'")
+
+                            # ပြောင်းလဲမှုစာသားအား စနစ်တကျ ပေါင်းစပ်တည်ဆောက်ခြင်း
+                            if user_changes:
+                                account_audit_action = f"Update User ({target_username}) | ⚙️ Changes: {', '.join(user_changes)}"
+                            else:
+                                account_audit_action = f"Update User ({target_username}) | No account data changed"
+
+                            # 🌟 ၃။ ဝန်ထမ်းအကောင့်အား ပြင်ဆင်မှု အောင်မြင်ကြောင်း စမတ်ကျကျ မှတ်သားခြင်း
+                            current_admin = st.session_state["user_info"]["username"]
+                            log_user_activity(
+                                username=current_admin, 
+                                action=account_audit_action, # 💡 ဤနေရာတွင် အပြောင်းအလဲများ ကွက်တိ ဝင်သွားပါမည်ဗျာ ✨
+                                status="Success"
+                            )
+
+                            st.success(f"✨ Username: {target_username} updated successfully!")
                             st.session_state["edit_user_mode"] = False
                             st.session_state["edit_user_data"] = None
                             st.rerun()
@@ -693,7 +682,7 @@ def main_app():
                         new_name = st.text_input("Name", placeholder="Name")
                         new_username = st.text_input("Username", placeholder="username")
                         new_password = st.text_input("Password", type="password", placeholder="password")
-                        new_role = st.selectbox("Define Role", ["user", "admin"])
+                        new_role = st.selectbox("Define Role", ["user", "super", "admin"])
                         
                         submit_add = st.form_submit_button("➕ Add New")
 
