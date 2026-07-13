@@ -261,13 +261,6 @@ def main_app():
                 else:
                     st.warning("Must provide at least Name and Reason to save the record.")
 
-    # --- Tab 2: View Records (Both Admin and User) ---
-    with tab2:
-        st.subheader("📊 Blacklist Data")
-        
-        def reset_page():
-            st.session_state.current_page = 1
-
         # 🌟 ၁။ Dialog Function (စက်မလေးစေရန်နှင့် ပေါ့ပ်အက်ပ် ကောင်းမွန်စွာအလုပ်လုပ်ရန် ထိပ်ဆုံးတွင် သီးသန့်ဆောက်ထားပါသည်)
         @st.dialog("📸 NRC Photo View", width="small")
         def popup_image_dialog(url, name, dlg_id):
@@ -291,7 +284,15 @@ def main_app():
                 if st.button("Close", key=f"close_dlg_{dlg_id}", use_container_width=True):
                     st.rerun()
             st.write("")
-
+    
+    
+    # --- Tab 2: View Records (Both Admin and User) ---
+    with tab2:
+        st.subheader("📊 Blacklist Data")
+        
+        def reset_page():
+            st.session_state.current_page = 1
+        
         # --- Search UI ---
         search_col1, search_col2 = st.columns(2)
         with search_col1:
