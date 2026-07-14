@@ -807,25 +807,21 @@ def main_app():
 def log_user_activity(username, action, status, session_id=None):
     import pytz
     from datetime import datetime
-    
-    # 🎯 Streamlit Framework အောက်တွင် အလုပ်လုပ်စေရန် သေချာစေခြင်း
     import streamlit as st
+    import time  # 🎯 Retry time ခံရန်အတွက်
     
-    # Static check ညှိနှိုင်းမှု
     current_enable_supabase = globals().get('ENABLE_SUPABASE', True)
     current_enable_sheet = globals().get('ENABLE_GOOGLE_SHEET', True)
     
     tz = pytz.timezone('Asia/Yangon')
     now_mm = datetime.now(tz).isoformat()
     
-    # 🎯 Session ID မပါလာပါက Streamlit Session State သို့မဟုတ် Backup စာသားသုံးရန်
     if not session_id:
         if "current_session_id" in st.session_state and st.session_state["current_session_id"]:
             session_id = st.session_state["current_session_id"]
         else:
             session_id = "ST-LIVE-SESSION"
             
-    # Username ဗလာဖြစ်နေပါက ယာယီအသုံးပြုသူအမည် သတ်မှတ်ခြင်း
     if not username:
         if "user_info" in st.session_state and st.session_state["user_info"]:
             username = st.session_state["user_info"].get("username", "system_user")
@@ -835,7 +831,6 @@ def log_user_activity(username, action, status, session_id=None):
     # A. Supabase Database ထဲသို့ Logs ရေးခြင်း
     if current_enable_supabase:
         try:
-            # 🎯 global scope ထဲမှ supabase client အား တိုက်ရိုက်ဆွဲသုံးခြင်း
             global_supabase = globals().get('supabase')
             if global_supabase:
                 global_supabase.table("user_logs").insert({
@@ -848,30 +843,43 @@ def log_user_activity(username, action, status, session_id=None):
         except Exception as e: 
             print(f"Supabase Log Error under Streamlit: {e}")
 
-    # B. 🎯 Google Sheet ၏ 'user_logs' ထဲသို့ သွင်းခြင်း
+    # B. 🎯 Google Sheet သို့ ဒေတာသွင်းခြင်း (မဝင်မချင်း ၃ ကြိမ်အထိ အတင်းကြိုးစားမည့် စနစ်)
     if current_enable_sheet:
-        try:
-            # 🎯 global scope ထဲမှ get_google_sheet အား တိုက်ရိုက်ခေါ်ယူခြင်း
-            get_sheet_fn = globals().get('get_google_sheet')
-            if get_sheet_fn:
-                spreadsheet = get_sheet_fn()
-                if spreadsheet:
-                    log_worksheet = spreadsheet.worksheet("user_logs")
-                    
-                    log_row_value = [
-                        "AUTO",               # Column A: id (Google Sheet auto စဉ်ပေးရန် သို့မဟုတ် သီးသန့် ID)
-                        str(username),         # Column B: username
-                        str(now_mm),           # Column C: action_date_time
-                        str(session_id),       # Column D: session_id
-                        str(action),           # Column E: action
-                        str(status)            # Column F: status
-                    ]
-                    
-                    # Row 2 (Header အောက်) ထဲသို့ တိုက်ရိုက် ညှပ်ထည့်ခြင်း
-                    log_worksheet.insert_row(log_row_value, index=2, value_input_option='USER_ENTERED')
-                    print(f"✨ Streamlit Log successfully synced to Google Sheet!")
-        except Exception as sheet_log_err:
-            print(f"⚠️ Streamlit UI Sheet Log Sync Failed: {str(sheet_log_err)}")
+        # ဒေတာအဆင်သင့် ပြင်ဆင်ခြင်း
+        log_row_value = [
+            "PENDING",             # Column A: id (အောက်တွင် စဉ်နံပါတ် တွက်ချက်ပါမည်)
+            str(username),         # Column B: username
+            str(now_mm),           # Column C: action_date_time
+            str(session_id),       # Column D: session_id
+            str(action),           # Column E: action
+            str(status)            # Column F: status
+        ]
+        
+        # 🎯 API Lock ဖြစ်ပါက အလုပ်ဖြစ်စေရန် ၃ ကြိမ်အထိ ပတ်ပြီး ကြိုးစားခိုင်းခြင်း
+        for attempt in range(3):
+            try:
+                global_sheet_fn = globals().get('get_google_sheet')
+                if global_sheet_fn:
+                    spreadsheet = global_sheet_fn()
+                    if spreadsheet:
+                        log_worksheet = spreadsheet.worksheet("user_logs")
+                        
+                        # ID စဉ်နံပါတ် တွက်ချက်ခြင်း
+                        col_a_values = log_worksheet.col_values(1)
+                        next_index = len(col_a_values)
+                        if next_index <= 1:
+                            next_index = 1
+                            
+                        # ID နံပါတ် အစစ်အမှန်အား ထည့်သွင်းခြင်း
+                        log_row_value[0] = str(next_index)
+                        
+                        # 🎯 ဇယား၏ အောက်ခြေဆုံးတွင် သွားရောက် ကပ်ခြင်း
+                        log_worksheet.append_row(log_row_value, value_input_option='USER_ENTERED')
+                        print(f"✨ Log successfully synced to Google Sheet on attempt {attempt + 1}!")
+                        break  # ✨ အောင်မြင်စွာ ဝင်သွားပါက Loop ထဲမှ ချက်ချင်းထွက်မည်
+            except Exception as sheet_log_err:
+                print(f"⚠️ Sheet Append Attempt {attempt + 1} Failed: {str(sheet_log_err)}")
+                time.sleep(1)  # ⏳ ၁ စက္ကန့် စောင့်ပြီးမှ နောက်တစ်ကြိမ် ထပ်ကြိုးစားရန်
 
 def auto_cleanup_expired_logs():
     if "cleanup_done" not in st.session_state:
