@@ -804,7 +804,6 @@ def main_app():
                                 st.success(f"🗑️ Username: {target_user_data.get('username')} deleted."); st.rerun()
             manage_users_crud()
 
-# 🌟 User Logs များအား မူရင်း Google Sheet 'user_logs' Tab ၏ Column F (status) ပါဝင်အောင် ကွက်တိ ညှိပေးထားသော စနစ်
 def log_user_activity(username, action, status, session_id=None):
     if not ENABLE_SUPABASE:
         print(f"⏸️ Supabase DISABLED: Skip writing database log for [{action}]")
@@ -828,28 +827,36 @@ def log_user_activity(username, action, status, session_id=None):
         except Exception as e: 
             print(f"Supabase Log Error: {e}")
 
-    # B. 🎯 Google Sheet ၏ 'user_logs' ထဲသို့ Column F (status) ပါဝင်အောင် ကွက်တိ သွင်းခြင်း
+    # B. 🎯 Google Sheet ၏ 'user_logs' ထဲသို့ စနစ်တကျ သွင်းခြင်း (Debug Mode ပါဝင်သည်)
     if ENABLE_GOOGLE_SHEET:
         try:
             spreadsheet = get_google_sheet()
             if spreadsheet:
                 log_worksheet = spreadsheet.worksheet("user_logs")
                 
-                # လက်ရှိ Row အရေအတွက်ကို တွက်ချက်ပြီး နောက် Log ID စဉ်နံပါတ် (Column A) ကို ထုတ်ပေးခြင်း
-                next_index = len(log_worksheet.col_values(1))
+                # Column A (id) ထဲရှိ စာရင်းကိုဖတ်ပြီး စဉ်နံပါတ် တွက်ချက်ခြင်း
+                col_a_values = log_worksheet.col_values(1)
+                next_index = len(col_a_values)
+                if next_index <= 1:
+                    next_index = 1
                 
-                # 🎯 လူကြီးမင်း၏ Google Sheet Headers (A မှ F) အတိုင်း တိကျစွာ ညှိထားပါသည်
                 log_row_value = [
-                    str(next_index),       # Column A: id (ဉ်နံပါတ်)
+                    str(next_index),       # Column A: id
                     str(username),         # Column B: username
                     str(now_mm),           # Column C: action_date_time
                     str(session_id),       # Column D: session_id
                     str(action),           # Column E: action
-                    str(status)            # Column F: status (🎯 ဤနေရာတွင် Success / Fail ကွက်တိ ဝင်သွားပါမည်)
+                    str(status)            # Column F: status
                 ]
-                log_worksheet.append_row(log_row_value)
-                print(f"✨ User Log synced to Google Sheet with Status: [{action} - {status}]")
+                
+                # 🎯 နေရာလွတ် ပြဿနာများကို ကျော်လွှားရန် ဒုတိယမြောက် Row တည့်တည့်သို့ ညှပ်ထည့် (Insert) ခိုင်းခြင်း
+                # Header ရဲ့ အောက်ခြေတည့်တည့်မှာ Row အသစ်တိုးပြီး ထည့်သွားမည့် စနစ်ဖြစ်ပါတယ်
+                log_worksheet.insert_row(log_row_value, index=2, value_input_option='USER_ENTERED')
+                print(f"✨ User Log synced to Google Sheet Success!")
+                
         except Exception as sheet_log_err:
+            # 🚨 Google Sheet ထဲ ဒေတာမဝင်ရသည့် အကြောင်းရင်းရင်းမြစ်ကို Screen ပေါ်တွင် အနီရောင်စာသားဖြင့် ထုတ်ပြရန်
+            st.error(f"⚠️ Google Sheet Log Sync Error: {str(sheet_log_err)}")
             print(f"⚠️ Google Sheet User Log Sync Failed: {str(sheet_log_err)}")
 
 def auto_cleanup_expired_logs():
