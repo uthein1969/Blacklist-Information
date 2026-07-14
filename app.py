@@ -1,70 +1,272 @@
 import streamlit as st
 from supabase import create_client, Client
 import time
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import pandas as pd
 
 # --- Supabase Configuration ---
 SUPABASE_URL = "https://batsowuihgwhxbboucpy.supabase.co"
 SUPABASE_KEY = "sb_publishable_OBTOI4EioNVufb5akpDOwA_75EmAcWr"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# ========================================================
+# ⚙️ LIVE CONNECTION TOGGLE SWITCHES (ပိတ်/ဖွင့် စမ်းသပ်ရန် ခလုတ်များ)
+# ========================================================
+ENABLE_SUPABASE = True      # False ထားပါက Supabase ထဲသို့ Data မသိမ်းဘဲ ကျော်သွားမည်
+ENABLE_GOOGLE_SHEET = True  # False ထားပါက Google Sheet ထဲသို့ Sync မလုပ်ဘဲ ကျော်သွားမည်
+
 def check_login(username, password):
     # 'users' table ထဲမှာ username နဲ့ password ကို စစ်ဆေးခြင်း
     response = supabase.table("users").select("*").eq("username", username).eq("password", password).execute()
     return response.data
 
-def login_form():
-    st.title("🚫 Blacklist Information System")
-    st.subheader("Login to access the system")
 
-    # ၁။ Form UI ကို ဒေတာလက်ခံရန် သီးသန့်ဆောက်ခြင်း
+
+# ========================================================
+# 🛡️ GOOGLE SHEETS REAL-TIME SYNC SYSTEM (UPDATED METHOD)
+# ========================================================
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+
+def get_google_sheet():
+    try:
+        # 🎯 SCOPES သတ်မှတ်ခြင်း
+        scopes = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        
+        # 🎯 လူကြီးမင်း၏ JSON ဖိုင်အမည်နှင့် တစ်လုံးမကျန် ကွက်တိတူအောင် သတ်မှတ်ထားပါသည်
+        json_key_file = "gen-lang-client-0490646413-a25b1a1118b6.json"
+        
+        creds = ServiceAccountCredentials.from_json_keyfile_name(json_key_file, scopes)
+        client = gspread.authorize(creds)
+        
+        # 🎯 လူကြီးမင်း၏ Google Sheet အမည် 'Blacklist_Information' ဖြစ်ကြောင်း သေချာပါစေ
+        spreadsheet = client.open("Blacklist_Information")
+        return spreadsheet
+    except Exception as e:
+        print(f"❌ Google Sheet Connection Failed: {str(e)}")
+        return None
+
+import requests
+
+# 🎯 Imgur သို့ ပုံလှမ်းပို့မည့် စနစ် (Anonymous Public Upload)
+def upload_to_imgur(file_bytes):
+    try:
+        # Imgur မူရင်း Anonymous Client ID (ဤအတိုင်း စမ်းသပ်နိုင်ပါသည်)
+        client_id = "490646413a25b1a" 
+        headers = {"Authorization": f"Client-ID {client_id}"}
+        payload = {"image": file_bytes}
+        
+        response = requests.post("https://api.imgur.com/3/image", headers=headers, data=payload)
+        res_data = response.json()
+        
+        if res_data.get("success"):
+            return res_data["data"]["link"] # 🔗 Direct URL (e.g., https://i.imgur.com/AbCdEfG.png)
+        else:
+            print(f"❌ Imgur Upload Failed Response: {res_data}")
+            return None
+    except Exception as e:
+        print(f"❌ Imgur Connection Error: {e}")
+        return None
+
+# 🎯 Supabase Database ကောင်း/မကောင်း Live စစ်ဆေးပေးမည့် စနစ်
+def is_supabase_alive():
+    if not ENABLE_SUPABASE:
+        return False
+    try:
+        # Database ထဲသို့ ပေါ့ပေါ့ပါးပါး Query တစ်ခု လှမ်းပစ်ပြီး Status စစ်ခြင်း
+        supabase.table("users").select("username").limit(1).execute()
+        return True
+    except Exception:
+        return False
+
+# ========================================================
+# 🛡️ GOOGLE SHEETS REAL-TIME SYNC SYSTEM (COLUMN CORRECTED & LOGS SYNCED)
+# ========================================================
+
+# 🌟 Data Add New ရောက်လာလျှင် Google Sheet ၌ အောက်ဆုံးတွင် တန်းထည့်မည့် စနစ် (Column အစီအစဉ်အမှန်)
+def auto_sync_append_record(data_dict):
+    spreadsheet = get_google_sheet()
+    if spreadsheet:
+        try:
+            worksheet = spreadsheet.worksheet("blacklist_records")
+            
+            # 🎯 လူကြီးမင်း၏ Google Sheet Column (A မှ I) အစီအစဉ်အတိုင်း တိကျစွာ ညှိပေးထားပါသည်
+            import pytz; from datetime import datetime
+            tz = pytz.timezone('Asia/Yangon')
+            now_mm = datetime.now(tz).isoformat()
+            
+            row_value = [
+                str(data_dict.get("id") or data_dict.get("blacklist_id") or ""), # Column A: id
+                str(data_dict.get("full_name", "")),                            # Column B: full_name
+                str(data_dict.get("nrc_number", "")),                          # Column C: nrc_number
+                str(data_dict.get("reason", "")),                              # Column D: reason
+                str(data_dict.get("blacklisted_by", "")),                      # Column E: blacklisted_by
+                str(now_mm),                                                   # Column F: created_at
+                str(data_dict.get("Remark1") or data_dict.get("company_name") or data_dict.get("remark1") or ""), # Column G: Remark1
+                str(data_dict.get("Remark2") or data_dict.get("address") or data_dict.get("remark2") or ""),      # Column H: Remark2
+                str(data_dict.get("image_url") or "")                           # Column I: image_url
+            ]
+            worksheet.append_row(row_value)
+            print("✨ Real-time ADD Sync to Google Sheet Success!")
+        except Exception as e:
+            print(f"⚠️ Google Sheet Add Failed: {str(e)}")
+
+# 🌟 ၂။ Data Update လိုက်လျှင် Google Sheet ထဲရှိ သက်ဆိုင်ရာ Row ကို ကွက်တိလိုက်ပြင်ပေးမည့် စနစ် (Column အစီအစဉ်အမှန်)
+def auto_sync_update_record(record_id, updated_data_dict):
+    if not ENABLE_GOOGLE_SHEET:
+        print("⏸️ Google Sheet Update Sync is Currently DISABLED.")
+        return
+
+    spreadsheet = get_google_sheet()
+    if spreadsheet:
+        try:
+            worksheet = spreadsheet.worksheet("blacklist_records")
+            id_list = worksheet.col_values(1) # Column A (ID စစ်ဆေးခြင်း)
+            str_id = str(record_id)
+            
+            if "id" not in updated_data_dict:
+                updated_data_dict["id"] = str_id
+
+            if str_id in id_list:
+                row_index = id_list.index(str_id) + 1
+                
+                # 🎯 Update လုပ်လျှင်လည်း Column အစီအစဉ် (A မှ I) အတိုင်း တိကျစွာ ပြင်ဆင်ပေးပါသည်
+                row_value = [
+                    str_id,                                                        # Column A: id
+                    str(updated_data_dict.get("full_name", "")),                   # Column B: full_name
+                    str(updated_data_dict.get("nrc_number", "")),                 # Column C: nrc_number
+                    str(updated_data_dict.get("reason", "")),                      # Column D: reason
+                    str(updated_data_dict.get("blacklisted_by") or st.session_state.get("user_info", {}).get("username", "")), # Column E: blacklisted_by
+                    worksheet.cell(row_index, 6).value or "",                      # Column F: created_at (မူရင်းအချိန်အတိုင်း ထားရှိခြင်း)
+                    str(updated_data_dict.get("Remark1") or updated_data_dict.get("company_name") or updated_data_dict.get("remark1") or ""), # Column G: Remark1
+                    str(updated_data_dict.get("Remark2") or updated_data_dict.get("address") or updated_data_dict.get("remark2") or ""),      # Column H: Remark2
+                    str(updated_data_dict.get("image_url") or "")                  # Column I: image_url
+                ]
+                # A မှ I အထိ Range သတ်မှတ်၍ အကုန်လုံး တစ်ပြိုင်နက် Update လုပ်ခြင်း
+                worksheet.update(range_name=f"A{row_index}:I{row_index}", values=[row_value])
+                print(f"✨ Real-time UPDATE Sync to Google Sheet Row {row_index} Success!")
+            else:
+                auto_sync_append_record(updated_data_dict)
+        except Exception as e:
+            print(f"⚠️ Google Sheet Update Failed: {str(e)}")
+
+# 🌟 ၃။ Dialog Function (Global Scope တွင် ထားရှိပါသည်)
+@st.dialog("📸 NRC Photo View", width="small")
+def popup_image_dialog(url, name, dlg_id):
+    st.html("""
+        <style>
+            [data-testid="stDialog"] > div > div { padding: 1rem 0rem 1rem 0rem !important; }
+            [data-testid="stDialog"] .stMarkdown { padding-left: 1.5rem !important; padding-right: 1.5rem !important; }
+        </style>
+    """)
+    st.write(f"**Name:** {name}")
+    st.image(url, use_container_width=True)
+    st.divider()
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("Close", key=f"close_dlg_{dlg_id}", use_container_width=True):
+            st.rerun()
+			
+# ========================================================
+# 🔐 HYBRID AUTHENTICATION SYSTEM (SUPABASE ↔️ GOOGLE SHEET)
+# ========================================================
+
+def check_user_login(username_input, password_input):
+    """
+    အကောင့်မှန်/မမှန်အား Supabase (သို့မဟုတ်) Google Sheet Fallback စနစ်ဖြင့် စစ်ဆေးပေးသော ဖန်ရှင်
+    """
+    # 1. Supabase အသက်ရှင်နေပါက Database အတွင်းမှ အကောင့်စစ်ဆေးခြင်း
+    if is_supabase_alive():
+        try:
+            res = supabase.table("users").select("*").eq("username", username_input.strip()).execute()
+            if res.data:
+                user = res.data[0]
+                if user.get("password") == password_input.strip():
+                    return user  # အကောင့်မှန်ပါက User Dict ပြန်ပေးခြင်း
+        except Exception:
+            pass  # Error တက်ပါက အောက်ခြေက Google Sheet Fallback စနစ်သို့ ဆင်းမည်
+
+    # 2. ⚠️ Supabase ဒေါင်းနေပါက Google Sheet ၏ 'users' Tab မှ ဖတ်၍ Login စစ်ဆေးခြင်း
+    if ENABLE_GOOGLE_SHEET:
+        try:
+            spreadsheet = get_google_sheet()
+            if spreadsheet:
+                users_worksheet = spreadsheet.worksheet("users")
+                all_users = users_worksheet.get_all_records()
+                
+                for row in all_users:
+                    if str(row.get("username")).strip() == username_input.strip():
+                        if str(row.get("password")).strip() == password_input.strip():
+                            return {
+                                "username": str(row.get("username")),
+                                "role": str(row.get("role") or "staff"),
+                                "fallback_mode": True
+                            }
+        except Exception as e:
+            print(f"❌ Google Sheet Login Read Error: {e}")
+            
+    return None
+
+
+def login_form():
+    """
+    Streamlit GUI Login Form ပြသခြင်းနှင့် Dynamic Session စီမံခန့်ခွဲမှုစနစ်
+    """
+    st.title("🚫 KYC Information System")
+    st.subheader("Login to access the system")
     with st.form("login_form"):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submit_button = st.form_submit_button("Login")
 
-    # 🌟 Submit Button နှိပ်လိုက်သည့် Logic
     if submit_button:
-        user_data = check_login(username, password)
+        # 🎯 ကြိုတင်ကြေညာထားသော check_user_login ဖန်ရှင်ကို လှမ်းခေါ်ခြင်း
+        user_data = check_user_login(username, password)
+        
         if user_data:
             import uuid
-            
-            # ၁။ စနစ်တစ်ခုလုံးအတွက် Unique Session ID ထုတ်ယူခြင်း
             unique_session_id = str(uuid.uuid4())
             
-            # ========================================================
-            # 🌟 ပြင်ဆင်ချက် ၁ - Multi-Browser တားဆီးရန် အဟောင်းကို ကန်ထုတ် (Kick Out) သည့် Logic စနစ်သစ်
-            # ========================================================
-            # Users Table ထဲတွင် လက်ရှိ ၎င်း Username ဖြင့် Active ဖြစ်နေသော Browser ရှိမရှိ အရင်စစ်ဆေးခြင်း
-            user_check = supabase.table("users").select("current_session_id").eq("username", username).execute()
+            # Supabase Live ဖြစ်/မဖြစ် လက်ရှိအခြေအနေအား စစ်ဆေးခြင်း
+            db_live = is_supabase_alive()
             
-            if user_check.data and user_check.data[0].get("current_session_id"):
-                old_session_id = user_check.data[0].get("current_session_id")
-                
-                # 💡 logout_time ကို လိုက်ပြင်မည့်အစား... အခြား Browser ကန်ထုတ်ခံရကြောင်း Row အသစ် (INSERT) သီးသန့် ကွက်တိမှတ်ပေးလိုက်ခြင်း
-                log_user_activity(
-                    username=username,
-                    action="Kicked Out (Multi-Browser Prevention)",
-                    status="Success",
-                    session_id=old_session_id
-                )
+            # 🟢 [CASE A] SUPABASE LIVE ဖြစ်နေလျှင် - Multi-Browser Prevention မောင်းနှင်ခြင်း
+            if db_live:
+                try:
+                    user_check = supabase.table("users").select("current_session_id").eq("username", username.strip()).execute()
+                    
+                    if user_check.data and user_check.data[0].get("current_session_id"):
+                        old_session_id = user_check.data[0].get("current_session_id")
+                        log_user_activity(username=username, action="Kicked Out (Multi-Browser Prevention)", status="Success", session_id=old_session_id)
 
-            # 🔗 ၂။ Supabase `users` table အား UPDATE သွားလုပ်ခြင်း (Session သစ်လဲခြင်း)
-            supabase.table("users").update({"current_session_id": unique_session_id}).eq("username", username).execute()
+                    # Session ID သစ်အား ဒေတာဘေ့စ်တွင် Update လုပ်ခြင်း
+                    supabase.table("users").update({"current_session_id": unique_session_id}).eq("username", username.strip()).execute()
+                except Exception as e:
+                    print(f"Supabase Multi-Browser Update Error: {e}")
             
-            # ၃။ Streamlit Session State များထဲတွင် စနစ်တကျ တစ်သားတည်း သိမ်းဆည်းခြင်း
+            # 🔴 [CASE B] SUPABASE OFFLINE ဖြစ်နေလျှင်
+            else:
+                print(f"ℹ️ Database Offline: Skipping Multi-Browser Check for [{username}]")
+
+            # 🎯 Streamlit State ထဲသို့ User Info တင်ပေးခြင်း
             st.session_state["logged_in"] = True
-            st.session_state["user_info"] = user_data[0]
+            st.session_state["user_info"] = user_data  
             st.session_state["current_session_id"] = unique_session_id
             
-            # 🔗 ၄။ user_logs table ထဲသို့ ဗိသုကာသစ်အတိုင်း အချိန်ရော Action ပါ တစ်ခါတည်း INSERT သွင်းခြင်း
-            # (မူရင်း log_data နှင့် insert() လိုင်းဟောင်းကြီးအား လုံးဝ ဖြုတ်ပစ်လိုက်ပါပြီဗျာ)
+            # Login အောင်မြင်ကြောင်း Audit Log ရေးမှတ်ခြင်း
             log_user_activity(username, action="Login", status="Success", session_id=unique_session_id)
             
-            # 🌟 Screen အဟောင်းကို လုံးဝ Flush ဖြစ်သွားအောင် Force Rerun လုပ်ခြင်း
             st.success("Login successful!")
+            import time; time.sleep(1)
             st.rerun() 
         else:
-            # ၅။ Login Fail ဖြစ်လျှင်လည်း No Active Session ဖြင့် ကွက်တိမှတ်ပေးခြင်း
+            # အကောင့်ဝင်မှု မအောင်မြင်ပါက Fail Log မှတ်ခြင်း
             log_user_activity(username, action="Login", status="Fail")
             st.error("Username or Password is incorrect.")
 
@@ -78,20 +280,13 @@ def translate_numbers(text):
 def main_app():
     if "user_info" in st.session_state and st.session_state.get("logged_in") == True:
         username = st.session_state["user_info"]["username"]
-        
-        # 🌟 ပြင်ဆင်ချက် ၁ - user_info ရဲ့အထဲကမဟုတ်ဘဲ Login ဝင်စဉ်က မှတ်ခဲ့သော ပင်မ Local Session ID အစစ်ကို ဆွဲယူခြင်း
         my_session_id = st.session_state.get("current_session_id")
-        
-        # Database ထဲက လက်ရှိ Live ဖြစ်နေတဲ့ Session ID ကို လှမ်းစစ်ခြင်း
         db_user = supabase.table("users").select("current_session_id").eq("username", username).execute()
         
         if db_user.data:
             live_session_id = db_user.data[0].get("current_session_id")
-            
-            # 🌟 ပြင်ဆင်ချက် ၂ - Local ID ရော Database ID ပါ နှစ်ခုစလုံး ရှိနေမှသာ ကန်ထုတ်ရန် ယှဉ်စစ်ခြင်း (Login စက္ကန့်တွင် ငြိမတက်စေရန်)
             if live_session_id and my_session_id:
                 if my_session_id != live_session_id:
-                    # အကယ်၍ အခြား Browser တစ်ခုခုကနေ ဝင်လိုက်လို့ ID ချိန်းသွားခဲ့ရင် အလိုအလျောက် ကန်ထုတ်မည်
                     st.session_state["logged_in"] = False
                     st.session_state["user_info"] = None
                     st.session_state["current_session_id"] = None
@@ -99,47 +294,27 @@ def main_app():
                     import time; time.sleep(3)
                     st.rerun()
 
-    # ရရှိလာသော user_info ထဲမှ user_role ကို ရယူခြင်း (မပါရှိပါက default အနေဖြင့် 'user' ဟု ယူပါမည်)
     user_role = st.session_state['user_info'].get('role', 'user')
-    
     st.sidebar.write(f"Welcome, {st.session_state['user_info']['username']} ({user_role.upper()})")
+    
     if st.sidebar.button("Logout"):
-        # 🌟 LOGOUT TIME အား UPDATE လုပ်ခြင်း
         if "current_session_id" in st.session_state:
             from datetime import datetime
             import pytz
-            
-            # --- Logout ခလုတ်နှိပ်သည့်နေရာရှိ အမှန်ကန်ဆုံးနှင့် အလုံခြုံဆုံး Logic ---
-            
-            # မြန်မာစံတော်ချိန်ဖြင့် ထွက်သည့် အချိန်ကို ရယူခြင်း
             tz = pytz.timezone('Asia/Yangon')
             now_mm = datetime.now(tz).isoformat()
-            
             current_username = st.session_state['user_info']['username']
             current_session_id = st.session_state["current_session_id"]
-            
-            # 🌟 ဖြေရှင်းချက် - အဟောင်းတွေကို Overwrite မဖြစ်စေရန် 
-            # log_user_activity ဖန်ရှင်ကို သုံးပြီး Logout Event အတွက် Row အသစ်သီးသန့် (INSERT) သွင်းပေးလိုက်ခြင်း ဖြစ်ပါတယ်ဗျာ
-            log_user_activity(
-                username=current_username,
-                action="Logout",
-                status="Success",
-                session_id=current_session_id
-            )
-            
-            # ၎င်းနောက်မှ Users Table ထဲက Session ID ကို NULL ချပစ်ခြင်း (မူရင်းအတိုင်း)
+            log_user_activity(username=current_username, action="Logout", status="Success", session_id=current_session_id)
             supabase.table("users").update({"current_session_id": None}).eq("username", current_username).execute()
         
-        # စက်ထဲက Memory အားလုံးကို အပြီးသတ် ဖျက်ထုတ်ပြီး Page ကို Rerun လုပ်ခြင်း
         st.session_state.clear()
         st.success("Logged out successfully!")
         st.rerun() 
 
-    st.header("🚫 Blacklist Information Management")
+    st.header("🚫 KYC Information Management")
     
-    # --- Role ပေါ်မူတည်၍ Tabs Rights ခွဲခြားခြင်း ---
     if user_role == 'admin':
-        # Admin ဖြစ်ပါက Tabs အားလုံး (၄) ခုစလုံးကို အပြည့်အဝ မြင်တွေ့ရပါမည်
         tab1, tab2, tab3, tab4 = st.tabs([
             "➕ Add New Record", 
             "📊 View Records", 
@@ -147,463 +322,401 @@ def main_app():
             "👥 User Management"
         ])
     elif user_role == 'super':
-        # Super Level ဖြစ်ပါက Add New Record နှင့် View Records Tabs (၂) ခုကို အသုံးပြုခွင့်ပေးပါမည် ✨
-        tab1, tab2 = st.tabs([
-            "➕ Add New Record", 
-            "📊 View Records"
-        ])
-        tab3 = None # Super အတွက် logs tab အား ပိတ်ထားပါမည်
-        tab4 = None # Super အတွက် user management tab အား ပိတ်ထားပါမည်
+        tab1, tab2 = st.tabs(["➕ Add New Record", "📊 View Records"])
+        tab3 = tab4 = None
     else:
-        # သာမန် User ဖြစ်ပါက View Records တစ်ခုတည်းကိုသာ Single Tab အနေဖြင့် ပြပါမည်
         tab2, = st.tabs(["📊 View Records"])
-        tab1 = None
-        tab3 = None 
-        tab4 = None # User အတွက် user management tab ကို ပိတ်ထားပါမယ်
+        tab1 = tab3 = tab4 = None
 
-    
-    # --- Tab 1: Add New Record (Admin Only) ---
+# --- Tab 1: Add New Record (Admin/Super) ---
     if tab1:
         with tab1:
             st.subheader("Add Information to Blacklist")
-            
-            # Form UI တည်ဆောက်ခြင်း
             with st.form("entry_form", clear_on_submit=True):
                 name = st.text_input("(Full Name)")
                 nrc = st.text_input("(NRC/PB)")
                 company = st.text_input("(Company Name)")
                 address = st.text_area("(Address)")
                 reason = st.text_area("(Reason)")
-                
-                # 📸 ပုံဖိုင်လက်ခံရန် File Uploader
                 uploaded_file = st.file_uploader("📸 (NRC Photo)", type=["png", "jpg", "jpeg"])
-                
                 submitted = st.form_submit_button("Save Data")
                 
-            # --- Form Submit လုပ်ပြီးနောက် လုပ်ဆောင်မည့် Logic အပိုင်း (Form အပြင်ဘက်) ---
             if submitted:
                 if name and reason:
-                    photo_url = None  # မူလအစတွင် ဓာတ်ပုံလင့်ခ်အား ဗလာအဖြစ် ထားရှိခြင်း
+                    photo_url = None
+                    db_live = is_supabase_alive() # Supabase အခြေအနေအား စစ်ဆေးခြင်း
                     
-                    # 🌟 အကယ်၍ အသုံးပြုသူက ပုံရွေးချယ် တင်ခဲ့လျှင်
+                    # 📸 [IMAGE UPLOAD LOGIC]
                     if uploaded_file is not None:
-                        try:
-                            # ဖိုင်အမျိုးအစား extension အား စစ်ထုတ်ခြင်း (png, jpg)
-                            file_ext = uploaded_file.name.split(".")[-1]
-                            
-                            # ဖိုင်အမည် တူညီမှုမရှိစေရန် သန့်စင်ပြီး စနစ်တကျ အမည်ပေးခြင်း
-                            clean_nrc = nrc.strip().replace("/", "_").replace("(", "_").replace(")", "_").replace(" ", "")
-                            if not clean_nrc:  # အကယ်၍ NRC မထည့်ခဲ့ပါက random သုံးမည်
-                                clean_nrc = "unknown"
-                            
-                            # 🌟 ပြင်ဆင်ချက် ၁ - time.time() ရှေ့တွင် import time ကို ကပ်လျက် ထည့်သွင်းခြင်း
-                            import time
-                            unique_timestamp = int(time.time())
-                            storage_file_name = f"nrc_{clean_nrc}_{unique_timestamp}.{file_ext}"
-                            
-                            # ဖိုင်၏ ဒေတာဗိုက်စ်များအား ဖတ်ယူခြင်း
-                            file_data = uploaded_file.getvalue()
-                            
-                            # Supabase Storage ("blacklist-images") ထဲသို့ ပုံလှမ်းတင်ခြင်း
-                            supabase.storage.from_("blacklist-images").upload(
-                                path=storage_file_name,
-                                file=file_data,
-                                file_options={"content-type": f"image/{file_ext}"}
-                            )
-                            
-                            # တင်ပြီးသွားသော ပုံ၏ အများပြည်သူကြည့်ရှုနိုင်မည့် Public URL လင့်ခ်အား ပြန်လည်ရယူခြင်း
-                            photo_url = supabase.storage.from_("blacklist-images").get_public_url(storage_file_name)
-                            
-                        except Exception as e:
-                            st.error(f"⚠️ Error uploading image to storage: {str(e)}")
+                        file_bytes = uploaded_file.getvalue()
+                        file_ext = uploaded_file.name.split(".")[-1]
+                        
+                        if db_live:
+                            # 🟢 Mode A: Supabase အလုပ်လုပ်နေလျှင် Supabase Storage သို့ တင်ခြင်း
+                            try:
+                                clean_nrc = nrc.strip().replace("/", "_").replace("(", "_").replace(")", "_").replace(" ", "")
+                                if not clean_nrc: clean_nrc = "unknown"
+                                import time
+                                storage_file_name = f"nrc_{clean_nrc}_{int(time.time())}.{file_ext}"
+                                
+                                supabase.storage.from_("blacklist-images").upload(
+                                    path=storage_file_name, file=file_bytes, file_options={"content-type": f"image/{file_ext}"}
+                                )
+                                photo_url = supabase.storage.from_("blacklist-images").get_public_url(storage_file_name)
+                            except Exception as e:
+                                st.error(f"⚠️ Supabase Storage Upload Failed: {str(e)}")
+                        else:
+                            # 🔴 Mode B: Supabase ပျက်နေလျှင် Imgur API Fallback သို့ လမ်းကြောင်းလွှဲတင်ခြင်း
+                            st.info("ℹ️ Database Offline: NRC ပုံအား Imgur Hosting သို့ လှမ်းပို့နေပါသည်...")
+                            photo_url = upload_to_imgur(file_bytes)
                     
-                    # 🌟 ဒေတာဘေ့စ်ထဲသို့ သွားရောက်သိမ်းဆည်းမည့် Payload ဒေတာအစုအဝေး
+                    # ဒေတာဘေ့စ် Payload တည်ဆောက်ခြင်း
                     data = {
-                        "full_name": name.strip(),
-                        "nrc_number": nrc.strip(),
+                        "full_name": name.strip(), 
+                        "nrc_number": nrc.strip(), 
                         "Remark1": company.strip(),    
-                        "Remark2": address.strip(),    
+                        "Remark2": address.strip(), 
                         "reason": reason.strip(),
-                        "blacklisted_by": st.session_state['user_info']['username'],
-                        "image_url": photo_url  # 📸 ပုံရှိလျှင် URL လင့်ခ်၊ မရှိလျှင် None (NULL) အဖြစ် တွဲသိမ်းမည်
+                        "blacklisted_by": st.session_state.get('user_info', {}).get('username', 'Unknown'), 
+                        "image_url": photo_url
                     }
                     
-                    # Database Table ထဲသို့ Insert လုပ်ခြင်း
-                    response = supabase.table("blacklist_records").insert(data).execute()
+                    # 💾 [DATA SAVE LOGIC]
+                    response = None
+                    if db_live:
+                        # 🟢 Supabase Live ဖြစ်ပါက Database ထဲသို့ အရင်သွင်းခြင်း
+                        response = supabase.table("blacklist_records").insert(data).execute()
+                    else:
+                        # 🔴 Supabase ပျက်နေပါက စက္ကန့်အလိုက် ယာယီ ID ထုတ်ပေးခြင်း
+                        import time
+                        class MockResponse:
+                            data = [{"id": f"GS-{int(time.time())}"}]
+                        response = MockResponse()
+                        st.caption("ℹ️ Saved via Google Sheet Backup Mode")
                     
-                    # ========================================================
-                    # 🌟 ပြင်ဆင်ချက် ၁ - data (Payload) ထဲက full_name ကို ကွက်တိ ဆွဲထုတ်၍ Log မှတ်ခြင်း
-                    # ========================================================
-                    current_admin = st.session_state["user_info"]["username"]
-                    log_user_activity(
-                        username=current_admin, 
-                        # 💡 blacklist_payload အစား အပေါ်က သုံးထားတဲ့ data ကို ပြောင်းလဲအသုံးပြုလိုက်ပါတယ်ဗျာ
-                        action=f"Add New Record ({data.get('full_name', 'Unknown')})", 
-                        status="Success"
-                    )
+                    # 🌟 Real-time Add Sync to Google Sheet
+                    try:
+                        if response and response.data:
+                            db_id = response.data[0].get("id") or response.data[0].get("blacklist_id")
+                            data["id"] = db_id
+                        
+                        # Google Sheet သို့ ပုံမှန်အတိုင်း ဒေတာလှမ်းပို့ခြင်း (Column I တွင် ၎င်းရလာသော ပုံလင့်ခ် ရောက်သွားပါမည်)
+                        auto_sync_append_record(data)
+                    except Exception as sheet_err:
+                        st.warning(f"⚠️ Google Sheet Sync Warning: {str(sheet_err)}")
                     
-                    # ========================================================
-                    # 🌟 ပြင်ဆင်ချက် ၂ - အလှပြမည့် ကုဒ်များ အလုပ်လုပ်စေရန် အပေါ်က st.rerun() အပိုကို ဖြုတ်လိုက်ပါသည်
-                    # ========================================================
+                    # Audit Trail Logs မှတ်တမ်းသွင်းခြင်း
+                    current_admin = st.session_state.get("user_info", {}).get("username", "admin")
+                    log_user_activity(username=current_admin, action=f"Add New Record ({data.get('full_name')})", status="Success")
                     
-                    # အောင်မြင်ကြောင်း မက်ဆေ့ခ်ျအား စက္ကန့်ပိုင်းပြသပြီး မျက်နှာပြင်အား အော်တို Refresh လုပ်ခြင်း
                     msg_container = st.empty()
-                    # data ထဲက full_name ကို တိုက်ရိုက်ယူသုံးပြီး ပြသခြင်း
-                    msg_container.success(f"🎉 {data.get('full_name', 'Record')} data saved successfully with image!")
-                    
-                    # 🌟 time.sleep(2) အတွက် အတင်းအကျပ် import time လုပ်ခြင်း
-                    import time
-                    time.sleep(2)
-                    
-                    msg_container.empty()
-                    st.rerun()  # 💡 အားလုံး ပြီးမှသာ အောက်ဆုံးတွင် တစ်ခါတည်း အပြီးသတ် Rerun လုပ်ခိုင်းပါသည်
-                    
+                    msg_container.success(f"🎉 {data.get('full_name')} data saved successfully!")
+                    import time; time.sleep(2); msg_container.empty(); st.rerun()
                 else:
                     st.warning("Must provide at least Name and Reason to save the record.")
 
-        # 🌟 ၁။ Dialog Function (စက်မလေးစေရန်နှင့် ပေါ့ပ်အက်ပ် ကောင်းမွန်စွာအလုပ်လုပ်ရန် ထိပ်ဆုံးတွင် သီးသန့်ဆောက်ထားပါသည်)
-        @st.dialog("📸 NRC Photo View", width="small")
-        def popup_image_dialog(url, name, dlg_id):
-            st.html("""
-                <style>
-                    [data-testid="stDialog"] > div > div {
-                        padding: 1rem 0rem 1rem 0rem !important;
-                    }
-                    [data-testid="stDialog"] .stMarkdown {
-                        padding-left: 1.5rem !important;
-                        padding-right: 1.5rem !important;
-                    }
-                </style>
-            """)
-            st.write(f"**Name:** {name}")
-            st.image(url, use_container_width=True)
-            st.divider()
+    # --- Tab 2: View & Edit Records (All Levels) ---
+    if tab2:
+        with tab2:
+            st.subheader("📊 Blacklist Data")
+            def reset_page(): st.session_state.current_page = 1
             
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                if st.button("Close", key=f"close_dlg_{dlg_id}", use_container_width=True):
-                    st.rerun()
-            st.write("")
-    
-    
-    # --- Tab 2: View Records (Both Admin and User) ---
-    with tab2:
-        st.subheader("📊 Blacklist Data")
-        
-        def reset_page():
-            st.session_state.current_page = 1
-        
-        # --- Search UI ---
-        search_col1, search_col2 = st.columns(2)
-        with search_col1:
-            name_search = st.text_input("🔍 Search by Name", placeholder="Name", on_change=reset_page)
-        with search_col2:
-            search_query = st.text_input("🔍 Search by NRC/PB", placeholder="NRC/PB", on_change=reset_page)
-        
-        # --- Database Query ---
-        query = supabase.table("blacklist_records").select("*")
-        if name_search:
-            query = query.ilike("full_name", f"%{name_search}%")
-        if search_query:
-            q_en, q_mm = translate_numbers(search_query)
-            query = query.or_(f"nrc_number.ilike.%{q_en}%,nrc_number.ilike.%{q_mm}%")
-        
-        records = query.order("id", desc=False).execute()
-
-        # 🌟 ၂။ ဒေတာ တကယ်ရှိမရှိကို ဦးစွာ စစ်ဆေးခြင်း (UnboundLocalError အား ရာနှုန်းပြည့်ကာကွယ်သည့်စနစ်)
-        if records.data and len(records.data) > 0:
-            total_items = len(records.data)
-            items_per_page = 10
-            total_pages = max(1, (total_items + items_per_page - 1) // items_per_page)
+            search_col1, search_col2 = st.columns(2)
+            with search_col1: name_search = st.text_input("🔍 Search by Name", placeholder="Name", on_change=reset_page)
+            with search_col2: search_query = st.text_input("🔍 Search by NRC/PB", placeholder="NRC/PB", on_change=reset_page)
             
-            if 'current_page' not in st.session_state:
-                st.session_state.current_page = 1
-
-            if st.session_state.current_page > total_pages:
-                st.session_state.current_page = 1
-
-            # --- Pagination Buttons UI ---
-            page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
-            with page_col1:
-                if st.button("⬅️ Previous") and st.session_state.current_page > 1:
-                    st.session_state.current_page -= 1
-                    st.rerun()
-
-            with page_col2:
-                st.write(f"Page **{st.session_state.current_page}** of **{total_pages}**")
-
-            with page_col3:
-                if st.button("Next ➡️") and st.session_state.current_page < total_pages:
-                    st.session_state.current_page += 1
-                    st.rerun()
+            records_data_list = []
             
-            # ဒေတာများအား စာမျက်နှာအလိုက် ခွဲထုတ်ခြင်း (Slice လုပ်ခြင်း)
-            start_idx = (st.session_state.current_page - 1) * items_per_page
-            end_idx = start_idx + items_per_page
-            page_data = records.data[start_idx:end_idx]
-
-            st.divider()
+            # 🎯 Local flag သတ်မှတ်ခြင်းဖြင့် UnboundLocalError နှင့် SyntaxError များအား လုံးဝကျော်လွှားခြင်း
+            run_google_sheet_fallback = False
             
-            # --- ပင်မ Logic စနစ်ဖြင့် ဒေတာများအား Expander ထဲတွင် ပတ်မောင်းပြသခြင်း ---
-            for i, record in enumerate(page_data, start=start_idx + 1):
-                raw_nrc = str(record['nrc_number']).strip() if record['nrc_number'] else ""
-                prefix = "NRC" if raw_nrc and raw_nrc[0].isdigit() else "PB"
-                
-                with st.expander(f"{i} 👤 {record['full_name']} ({prefix}: {raw_nrc})"):
-                    edit_key = f"edit_mode_{record['id']}"
-                    if edit_key not in st.session_state:
-                        st.session_state[edit_key] = False
+            # 🟢 [MODE 1] SUPABASE စနစ် ဖွင့်ထားလျှင် (Primary Database Mode)
+            if ENABLE_SUPABASE:
+                try:
+                    query = supabase.table("blacklist_records").select("*")
+                    if name_search: query = query.ilike("full_name", f"%{name_search}%")
+                    if search_query:
+                        q_en, q_mm = translate_numbers(search_query)
+                        query = query.or_(f"nrc_number.ilike.%{q_en}%,nrc_number.ilike.%{q_mm}%")
                     
-                    # 👉 [က] Edit Mode မဟုတ်လျှင် (ပုံမှန် Mode ဖြင့် ဒေတာနှင့် ခလုတ်များပြသရန်)
-                    if not st.session_state[edit_key]:
-                        st.write(f"**Reason:** {record['reason']}")
-                        st.write(f"**Listed by:** {record['blacklisted_by']}")
-                        st.write(f"**Company:** {record['Remark1']}")
-                        st.write(f"**Address:** {record['Remark2']}")
-                        
-                        # 📸 ဓာတ်ပုံလင့်ခ် စစ်ဆေးခြင်း
-                        if record.get("image_url"):
-                            if st.button("📸 View Image", key=f"btn_img_{record['id']}", use_container_width=True, type="secondary"):
-                                popup_image_dialog(record["image_url"], record.get("full_name", "Unknown"), record['id'])
-                        else:
-                            st.button("❌ No Image Available", key=f"btn_no_img_{record['id']}", use_container_width=True, disabled=True)
-
-                        st.write("") # Space ခံခြင်း
-
-                        # 🔗 Admin ဖြစ်ပါက📝 Edit / 🗑️ Delete ခလုတ်များအား နေရာမှန်ပြသခြင်း
-                        if user_role == 'admin':
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("📝 Edit", key=f"btn_edit_{record['id']}", use_container_width=True):
-                                    st.session_state[edit_key] = True
-                                    st.rerun()
-                            with col2:
-                                if st.button("🗑️ Delete", key=f"btn_del_{record['id']}", use_container_width=True):
-                                    deleted_name = record.get('full_name', f"ID: {record['id']}")
-                                    supabase.table("blacklist_records").delete().eq("id", record["id"]).execute()
-
-                                    current_admin = st.session_state["user_info"]["username"]
-                                    log_user_activity(
-                                        username=current_admin, 
-                                        action=f"Delete Record ({deleted_name})", 
-                                        status="Success"
-                                    )
-                                    st.success("Data Deleted Successfully!")
-                                    import time; time.sleep(1)
-                                    st.rerun()
-                        else:
-                            st.caption("🔒 View Only Mode (Admin access required to Edit/Delete)")
-
-                    # 👉 [ခ] Edit Mode ဖြစ်နေလျှင် (ဝန်ထမ်း အချက်အလက်ပြင်ဆင်ရန် Form ပြသခြင်း)
-                    else:
-                        with st.form(key=f"form_edit_{record['id']}"):
-                            new_name = st.text_input("Name", value=record['full_name'])
-                            new_nrc = st.text_input("NRC", value=record['nrc_number'])
-                            new_company = st.text_input("Company", value=record['Remark1'])
-                            new_address = st.text_input("Address", value=record['Remark2'])
-                            new_reason = st.text_area("Reason", value=record['reason'])
+                    response = query.order("id", desc=False).execute()
+                    records_data_list = response.data if response and response.data else []
+                except Exception as e:
+                    st.error(f"❌ Database Read Error: {str(e)}")
+                    st.warning("⚠️ Supabase ဒေတာဖတ်မရသဖြင့် Google Sheet Fallback Mode သို့ အလိုအလျောက် ပြောင်းလဲနေပါသည်...")
+                    # Supabase ပျက်ပါက Fallback စနစ်သို့ ကူးပြောင်းရန် flag လွှဲပေးခြင်း
+                    run_google_sheet_fallback = True
+            else:
+                # ၎င်းပြင်ပ Configuration Switch ဖြင့် ပိတ်ထားပါကလည်း Fallback အလုပ်လုပ်စေရန်
+                run_google_sheet_fallback = True
+            
+            # 🟢 [MODE 2] SUPABASE ပိတ်ထားလျှင် သို့မဟုတ် ပျက်စီးသွားလျှင် (Google Sheet Fallback Mode)
+            if run_google_sheet_fallback:
+                if ENABLE_GOOGLE_SHEET:
+                    try:
+                        spreadsheet = get_google_sheet()
+                        if spreadsheet:
+                            worksheet = spreadsheet.worksheet("blacklist_records")
+                            # Sheet ထဲရှိ ဒေတာအားလုံးကို ဆွဲယူခြင်း
+                            sheet_rows = worksheet.get_all_records()
                             
-                            edit_uploaded_file = st.file_uploader("📸 Change NRC Photo", type=["png", "jpg", "jpeg"], key=f"file_edit_{record['id']}")
+                            # Streamlit ကုဒ်အဟောင်းများနှင့် ကိုက်ညီစေရန် Key များကို စနစ်တကျ ပြန်လည်ညှိပေးခြင်း
+                            raw_list = []
+                            for row in sheet_rows:
+                                raw_list.append({
+                                    "id": str(row.get("id")),
+                                    "full_name": str(row.get("full_name", "")),
+                                    "nrc_number": str(row.get("nrc_number", "")),
+                                    "reason": str(row.get("reason", "")),
+                                    "blacklisted_by": str(row.get("blacklisted_by", "")),
+                                    "Remark1": str(row.get("Remark1", "")),
+                                    "Remark2": str(row.get("Remark2", "")),
+                                    "image_url": str(row.get("image_url", ""))
+                                })
                             
-                            f_col1, f_col2 = st.columns(2)
-                            with f_col1:
-                                update_submitted = st.form_submit_button("✅ Update", use_container_width=True, key=f"sub_upd_{record['id']}")
-                            with f_col2:
-                                cancel_submitted = st.form_submit_button("❌ Cancel", use_container_width=True, key=f"sub_can_{record['id']}")
-                                
-                        # Update ခလုတ် နှိပ်လိုက်သည့် လုပ်ဆောင်ချက် Logic
-                        if update_submitted:
-                            changes_list = []
-                            if record.get('full_name', '').strip() != new_name.strip():
-                                changes_list.append(f"Name: '{record.get('full_name')}' ➡️ '{new_name.strip()}'")
-                            if record.get('nrc_number', '').strip() != new_nrc.strip():
-                                changes_list.append(f"NRC: '{record.get('nrc_number')}' ➡️ '{new_nrc.strip()}'")
-                            if record.get('Remark1', '').strip() != new_company.strip():
-                                changes_list.append(f"Company: '{record.get('Remark1')}' ➡️ '{new_company.strip()}'")
-                            if record.get('Remark2', '').strip() != new_address.strip():
-                                changes_list.append(f"Address: '{record.get('Remark2')}' ➡️ '{new_address.strip()}'")
-                            if record.get('reason', '').strip() != new_reason.strip():
-                                changes_list.append(f"Reason: '{record.get('reason')}' ➡️ '{new_reason.strip()}'")
-                            if edit_uploaded_file is not None:
-                                changes_list.append("📸 NRC Photo: 'Updated New Image'")
-
-                            final_photo_url = record.get("image_url")
-                            if edit_uploaded_file is not None:
-                                try:
-                                    file_ext = edit_uploaded_file.name.split(".")[-1]
-                                    clean_nrc = new_nrc.strip().replace("/", "_").replace("(", "_").replace(")", "_").replace(" ", "")
-                                    if not clean_nrc: clean_nrc = "unknown"
-                                    import time
-                                    storage_file_name = f"nrc_{clean_nrc}_{int(time.time())}.{file_ext}"
-                                    supabase.storage.from_("blacklist-images").upload(path=storage_file_name, file=edit_uploaded_file.getvalue(), file_options={"content-type": f"image/{file_ext}"})
-                                    final_photo_url = supabase.storage.from_("blacklist-images").get_public_url(storage_file_name)
-                                except Exception as e:
-                                    st.error(f"⚠️ Error uploading image: {str(e)}")
+                            # 🔍 Google Sheet ဒေတာများပေါ်တွင် ရှာဖွေခြင်း (Search Filter Custom Logic)
+                            for record in raw_list:
+                                match = True
+                                if name_search and name_search.lower() not in record["full_name"].lower():
+                                    match = False
+                                if search_query:
+                                    q_en, q_mm = translate_numbers(search_query)
+                                    if q_en.lower() not in record["nrc_number"].lower() and q_mm.lower() not in record["nrc_number"].lower():
+                                        match = False
+                                if match:
+                                    records_data_list.append(record)
                                     
-                            update_data = {
-                                "full_name": new_name.strip(), "nrc_number": new_nrc.strip(), "reason": new_reason.strip(),
-                                "Remark1": new_company.strip(), "Remark2": new_address.strip(), "image_url": final_photo_url
-                            }
-                            supabase.table("blacklist_records").update(update_data).eq("id", record["id"]).execute()
+                            st.caption("ℹ️ Running on 🟢 Google Sheet Fallback Mode (Database Offline)")
+                    except Exception as sheet_err:
+                        st.error(f"❌ Google Sheet Read Error: {str(sheet_err)}")
+                else:
+                    st.info("⏸️ Connections နှစ်ခုစလုံးကို ပိတ်ထားသဖြင့် ဒေတာများအား မပြသနိုင်သေးပါ။")
 
-                            # ပြောင်းလဲမှုရှိမှသာ စုံစုံလင်လင် Log မှတ်မည့်စနစ်
-                            if changes_list:
-                                full_audit_action = f"Update Record ({new_name.strip()}) | ⚙️ Changes: {', '.join(changes_list)}"
+            # ----------------------------------------------------
+            # 📊 VIEW & PAGINATION LOGIC (ပြသခြင်း အပိုင်း)
+            # ----------------------------------------------------
+            if records_data_list and len(records_data_list) > 0:
+                total_items = len(records_data_list)
+                items_per_page = 10
+                total_pages = max(1, (total_items + items_per_page - 1) // items_per_page)
+                
+                if 'current_page' not in st.session_state: st.session_state.current_page = 1
+                if st.session_state.current_page > total_pages: st.session_state.current_page = 1
+
+                page_col1, page_col2, page_col3 = st.columns([1, 2, 1])
+                with page_col1:
+                    if st.button("⬅️ Previous") and st.session_state.current_page > 1:
+                        st.session_state.current_page -= 1; st.rerun()
+                with page_col2: st.write(f"Page **{st.session_state.current_page}** of **{total_pages}**")
+                with page_col3:
+                    if st.button("Next ➡️") and st.session_state.current_page < total_pages:
+                        st.session_state.current_page += 1; st.rerun()
+                
+                start_idx = (st.session_state.current_page - 1) * items_per_page
+                end_idx = start_idx + items_per_page
+                page_data = records_data_list[start_idx:end_idx]
+                st.divider()
+                
+                for i, record in enumerate(page_data, start=start_idx + 1):
+                    raw_nrc = str(record['nrc_number']).strip() if record['nrc_number'] else ""
+                    prefix = "NRC" if raw_nrc and raw_nrc[0].isdigit() else "PB"
+                    
+                    with st.expander(f"{i} 👤 {record['full_name']} ({prefix}: {raw_nrc})"):
+                        edit_key = f"edit_mode_{record['id']}"
+                        if edit_key not in st.session_state: st.session_state[edit_key] = False
+                        
+                        if not st.session_state[edit_key]:
+                            st.write(f"**Reason:** {record['reason']}")
+                            st.write(f"**Listed by:** {record['blacklisted_by']}")
+                            st.write(f"**Company:** {record['Remark1']}")
+                            st.write(f"**Address:** {record['Remark2']}")
+                            
+                            # 📸 Image View Logic (လင့်ခ်ရှိလျှင် ပြသရန်)
+                            if record.get("image_url") and record["image_url"] != "NULL" and record["image_url"].strip() != "":
+                                if st.button("📸 View Image", key=f"btn_img_{record['id']}", width='stretch', type="secondary"):
+                                    popup_image_dialog(record["image_url"], record.get("full_name", "Unknown"), record['id'])
                             else:
-                                full_audit_action = f"Update Record ({new_name.strip()}) | No data changed"
-                            
-                            current_admin = st.session_state["user_info"]["username"]
-                            log_user_activity(username=current_admin, action=full_audit_action, status="Success")
-                            st.session_state[edit_key] = False
-                            st.success("Update Successfully!")
-                            import time; time.sleep(1)
-                            st.rerun()
-                            
-                        if cancel_submitted:
-                            st.session_state[edit_key] = False
-                            st.rerun()
-        else:
-            # 🌟 ၃။ ရှာဖွေသောဒေတာ လုံးဝဗလာဖြစ်နေလျှင် လှလှပပပြသမည့် Message နေရာမှန်
-            st.info("🔍 ရှာဖွေထားသော အချက်အလက် မရှိပါဗျာ။ (No records found matching your search.)")
+                                st.button("❌ No Image Available", key=f"btn_no_img_{record['id']}", width='stretch', disabled=True)
 
+                            st.write("")
+
+                            if user_role == 'admin':
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.button("📝 Edit", key=f"btn_edit_{record['id']}", width='stretch'):
+                                        st.session_state[edit_key] = True; st.rerun()
+                                with col2:
+                                    if st.button("🗑️ Delete", key=f"btn_del_{record['id']}", width='stretch'):
+                                        deleted_name = record.get('full_name', f"ID: {record['id']}")
+                                        
+                                        # 🗑️ Delete (Supabase Context)
+                                        if ENABLE_SUPABASE:
+                                            supabase.table("blacklist_records").delete().eq("id", record["id"]).execute()
+                                        
+                                        # 🗑️ Delete (Google Sheet Context)
+                                        if ENABLE_GOOGLE_SHEET:
+                                            try:
+                                                spreadsheet = get_google_sheet()
+                                                if spreadsheet:
+                                                    worksheet = spreadsheet.worksheet("blacklist_records")
+                                                    id_list = worksheet.col_values(1)
+                                                    if str(record["id"]) in id_list:
+                                                        r_idx = id_list.index(str(record["id"])) + 1
+                                                        worksheet.delete_rows(r_idx)
+                                            except Exception as sheet_del_err:
+                                                print(f"Sheet Delete Warning: {sheet_del_err}")
+                                                
+                                        log_user_activity(username=st.session_state["user_info"]["username"], action=f"Delete Record ({deleted_name})", status="Success")
+                                        st.success("Data Deleted Successfully!"); import time; time.sleep(1); st.rerun()
+                            else:
+                                st.caption("🔒 View Only Mode (Admin access required to Edit/Delete)")
+                        else:
+                            # 📝 [ EDIT FORM MODE ]
+                            with st.form(key=f"form_edit_{record['id']}"):
+                                new_name = st.text_input("Name", value=record['full_name'])
+                                new_nrc = st.text_input("NRC", value=record['nrc_number'])
+                                new_company = st.text_input("Company", value=record['Remark1'])
+                                new_address = st.text_input("Address", value=record['Remark2'])
+                                new_reason = st.text_area("Reason", value=record['reason'])
+                                edit_uploaded_file = st.file_uploader("📸 Change NRC Photo", type=["png", "jpg", "jpeg"], key=f"file_edit_{record['id']}")
+                                
+                                f_col1, f_col2 = st.columns(2)
+                                with f_col1: update_submitted = st.form_submit_button("✅ Update", width='stretch')
+                                with f_col2: cancel_submitted = st.form_submit_button("❌ Cancel", width='stretch')
+                                    
+                            if update_submitted:
+                                changes_list = []
+                                if record.get('full_name', '').strip() != new_name.strip():
+                                    changes_list.append(f"Name: '{record.get('full_name')}' ➡️ '{new_name.strip()}'")
+                                if record.get('nrc_number', '').strip() != new_nrc.strip():
+                                    changes_list.append(f"NRC: '{record.get('nrc_number')}' ➡️ '{new_nrc.strip()}'")
+                                if record.get('Remark1', '').strip() != new_company.strip():
+                                    changes_list.append(f"Company: '{record.get('Remark1')}' ➡️ '{new_company.strip()}'")
+                                if record.get('Remark2', '').strip() != new_address.strip():
+                                    changes_list.append(f"Address: '{record.get('Remark2')}' ➡️ '{new_address.strip()}'")
+                                if record.get('reason', '').strip() != new_reason.strip():
+                                    changes_list.append(f"Reason: '{record.get('reason')}' ➡️ '{new_reason.strip()}'")
+
+                                final_photo_url = record.get("image_url")
+                                if edit_uploaded_file is not None and ENABLE_SUPABASE:
+                                    try:
+                                        file_ext = edit_uploaded_file.name.split(".")[-1]
+                                        clean_nrc = new_nrc.strip().replace("/", "_").replace("(", "_").replace(")", "_").replace(" ", "")
+                                        import time
+                                        storage_file_name = f"nrc_{clean_nrc}_{int(time.time())}.{file_ext}"
+                                        supabase.storage.from_("blacklist-images").upload(path=storage_file_name, file=edit_uploaded_file.getvalue(), file_options={"content-type": f"image/{file_ext}"})
+                                        final_photo_url = supabase.storage.from_("blacklist-images").get_public_url(storage_file_name)
+                                        changes_list.append("📸 NRC Photo Updated")
+                                    except Exception as e: st.error(f"⚠️ Error: {str(e)}")
+                                
+                                update_data = {
+                                    "full_name": new_name.strip(), "nrc_number": new_nrc.strip(), "reason": new_reason.strip(),
+                                    "Remark1": new_company.strip(), "Remark2": new_address.strip(), "image_url": final_photo_url
+                                }
+                                
+                                current_id = record.get('id')
+                                
+                                # 🟢 Database Update (Supabase)
+                                if ENABLE_SUPABASE:
+                                    supabase.table("blacklist_records").update(update_data).eq("id", current_id).execute()
+                                
+                                # 🌟 Real-time Update Sync to Google Sheet
+                                if ENABLE_GOOGLE_SHEET:
+                                    try:
+                                        auto_sync_update_record(current_id, update_data)
+                                    except Exception as sheet_err:
+                                        st.warning(f"⚠️ Google Sheet Update Sync Warning: {str(sheet_err)}")
+                                
+                                full_audit_action = f"Update Record ({new_name.strip()}) | ⚙️ Changes: {', '.join(changes_list)}" if changes_list else f"Update Record ({new_name.strip()}) | No data changed"
+                                log_user_activity(username=st.session_state["user_info"]["username"], action=full_audit_action, status="Success")
+                                st.session_state[edit_key] = False
+                                st.success("Update Successfully!"); import time; time.sleep(1); st.rerun()
+                                
+                            if cancel_submitted: st.session_state[edit_key] = False; st.rerun()
+            else:
+                st.info("🔍 ရှာဖွေထားသော အချက်အလက် မရှိပါ။")
+
+# --- Tab 3: User Access Logs (Admin Only) ---
     if tab3:
         with tab3:
             st.subheader("📜 User Access Logs (Audit Trail)")
-            
-            # 🌟 ၁။ ISO Time မှ မြန်မာစံတော်ချိန်သို့ ပြောင်းလဲပေးမည့် ပင်မ Helper Function
             def to_local_time(iso_str):
-                if not iso_str:
-                    return "N/A"
+                if not iso_str: return "N/A"
                 try:
-                    from datetime import datetime
-                    import pytz
+                    from datetime import datetime; import pytz
                     utc_dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
                     mm_tz = pytz.timezone('Asia/Yangon')
                     return utc_dt.astimezone(mm_tz).strftime('%Y-%m-%d %I:%M:%S %p')
-                except Exception:
-                    return iso_str
+                except Exception: return iso_str
 
-            # 🌟 ၂။ Streamlit Fragment ဖြင့် ၁၀ စက္ကန့်တစ်ခါ ဇယားကိုသာ သီးသန့် Auto-Refresh လုပ်မည့်စနစ်
             @st.fragment(run_every=10)
             def show_auto_refresh_logs():
-                import pandas as pd
                 from datetime import datetime
-                
-                # --- FILTER FORM UI ---
                 with st.form("logs_filter_form"):
                     st.write("🔍 **Filter User Logs**")
                     col1, col2 = st.columns(2)
-                    with col1:
-                        search_username = st.text_input("Search by Username", placeholder="e.g., admin, 001")
-                    with col2:
-                        filter_date = st.date_input("Select Date", value=None)
-                
+                    with col1: search_username = st.text_input("Search by Username", placeholder="e.g., admin, 001")
+                    with col2: filter_date = st.date_input("Select Date", value=None)
                     filter_submitted = st.form_submit_button("Refresh & Filter Logs")
 
-                # --- SUPABASE QUERY (ဗိသုကာသစ်အတိုင်း Column များကို တောင်းဆိုခြင်း) ---
                 try:
-                    log_query = supabase.table("user_logs").select(
-                        "id", "username", "action", "status", "action_date_time", "session_id"
-                    )
-                    
-                    # Username Filter ပါက ထည့်သွင်းစစ်ထုတ်ခြင်း
-                    if search_username.strip():
-                        log_query = log_query.ilike("username", f"%{search_username.strip()}%")
-                    
-                    # ID အလိုက် အသစ်ဆုံးကို အပေါ်ကပြရန်
+                    log_query = supabase.table("user_logs").select("id", "username", "action", "status", "action_date_time", "session_id")
+                    if search_username.strip(): log_query = log_query.ilike("username", f"%{search_username.strip()}%")
                     logs_response = log_query.order("id", desc=True).execute()
 
                     if logs_response.data:
                         formatted_logs = []
-                        
                         for log in logs_response.data:
                             raw_time = log.get('action_date_time')
                             action_time_local = to_local_time(raw_time)
 
-                            # Date Filter ပါက action_date_time အပေါ် အခြေခံ၍ စစ်ထုတ်ခြင်း
                             if filter_date and raw_time:
                                 try:
                                     log_date_str = datetime.fromisoformat(raw_time.replace('Z', '+00:00')).strftime('%Y-%m-%d')
-                                    if log_date_str != str(filter_date):
-                                        continue  # ရက်စွဲမကိုက်ညီပါက ကျော်သွားမည်
-                                except Exception:
-                                    pass
+                                    if log_date_str != str(filter_date): continue
+                                except Exception: pass
 
-                            # ဇယားအသစ်ဒီဇိုင်းအတွက် ဒေတာများအား စနစ်တကျ စုစည်းခြင်း
                             formatted_logs.append({
-                                "Log ID": log.get('id'),
-                                "Username": log.get('username'),
-                                "Action": log.get('action', 'N/A'),
-                                "Status": log.get('status', 'N/A'),
-                                "Date & Time (MM)": action_time_local,
-                                "Session ID": log.get('session_id')
+                                "Log ID": log.get('id'), "Username": log.get('username'), "Action": log.get('action', 'N/A'),
+                                "Status": log.get('status', 'N/A'), "Date & Time (MM)": action_time_local, "Session ID": log.get('session_id')
                             })
-
-                        # --- DATAFRAME UI DISPLAY ---
                         if formatted_logs:
-                            df_logs = pd.DataFrame(formatted_logs)
-                            st.dataframe(df_logs, use_container_width=True, hide_index=True)
-                            st.caption(f"🔄 Total Logs: {len(df_logs)} (Auto-Refresh every 10 seconds)")
-                        else:
-                            st.info("No logs found for the given filter criteria.")
-                    else:
-                        st.info("No Logs data found in database.")
-                        
-                except Exception as e:
-                    st.error(f"❌ Error loading logs: {e}")
-
-            # 🌟 ၃။ တည်ဆောက်ထားသော Fragment Function အား ဤနေရာမှ စတင်ပတ်မောင်းနှင်ခြင်း
+                            st.dataframe(pd.DataFrame(formatted_logs), use_container_width=True, hide_index=True)
+                            st.caption(f"🔄 Total Logs: {len(formatted_logs)} (Auto-Refresh every 10 seconds)")
+                        else: st.info("No logs found for the given filter criteria.")
+                    else: st.info("No Logs data found in database.")
+                except Exception as e: st.error(f"❌ Error loading logs: {e}")
             show_auto_refresh_logs()
 
-    # ----------------------------------------------------
-    # ⚙️ Tab 4: User Setup & Management (Admin Only)
-    # ----------------------------------------------------
+    # --- Tab 4: User Management Accounts (Admin Only) ---
     if tab4:
         with tab4:
             st.subheader("⚙️ User Account Management Setup")
-            st.write("Account Setup & management")
-            
-            # --- State Management for Edit Mode ---
             if "edit_user_mode" not in st.session_state:
                 st.session_state["edit_user_mode"] = False
                 st.session_state["edit_user_data"] = None
 
-            # 🌟 ၅ စက္ကန့်တိုင်း အော်တို Auto-Refresh လုပ်ပေးမည့် ပင်မ Fragment Module
             @st.fragment(run_every=5)
             def manage_users_crud():
-                # ========================================================
-                # 1. READ & DISPLAY USERS (အသုံးပြုသူများစာရင်း ပြသခြင်း)
-                # ========================================================
                 st.cache_data.clear()
                 users_res = supabase.table("users").select("*").order("username").execute()
                 users_list = users_res.data if users_res.data else []
                 
                 if users_list:
-                    import pandas as pd
                     view_data = []
                     for u in users_list:
-                        session_val = u.get("current_session_id")
-                        if session_val is None or session_val == "":
-                            session_val = "None"
-                            
+                        session_val = u.get("current_session_id") or "None"
                         view_data.append({
-                            "(Name)": u.get("name", "-"),
-                            "(Username)": u.get("username"),
-                            "(Role)": str(u.get("role")).upper(),
-                            "(Current Session)": session_val
+                            "(Name)": u.get("name", "-"), "(Username)": u.get("username"),
+                            "(Role)": str(u.get("role")).upper(), "(Current Session)": session_val
                         })
-                    df_users = pd.DataFrame(view_data)
                     st.write("📊 user list")
-                    st.dataframe(df_users, use_container_width=True)
-                else:
-                    st.info("no users found in the system.")
+                    st.dataframe(pd.DataFrame(view_data), use_container_width=True)
+                else: st.info("no users found in the system.")
                 
                 st.divider()
 
-                # ========================================================
-                # 2. CREATE (Add New) & UPDATE (Edit) FORM UI
-                # ========================================================
-                # 🌟 ပြင်ဆင်ချက် - ဤ Form များကိုပါ ဒေတာပြောင်းလဲလျှင် ချက်ချင်းသိစေရန် Fragment အတွင်းသို့ သွတ်သွင်းလိုက်ပါသည်
+                # 📝 ဝန်ထမ်းအကောင့်ပြင်ဆင်ခြင်း Form အပြည့်အစုံ
                 if st.session_state["edit_user_mode"]:
                     st.write("📝 update selected account")
                     current_u = st.session_state["edit_user_data"]
@@ -615,56 +728,25 @@ def main_app():
                         input_role = st.selectbox("Role", ["user", "super", "admin"], index=0 if current_u.get("role") == "user" else (1 if current_u.get("role") == "super" else 2))
                         
                         col_f1, col_f2 = st.columns(2)
-                        with col_f1:
-                            save_edit = st.form_submit_button("💾 Save Updates")
-                        with col_f2:
-                            cancel_edit = st.form_submit_button("❌ Cancel")
+                        with col_f1: save_edit = st.form_submit_button("💾 Save Updates")
+                        with col_f2: cancel_edit = st.form_submit_button("❌ Cancel")
 
                         if save_edit:
-                            update_payload = {
-                                "name": input_name,
-                                "role": input_role
-                            }
-                            if input_password.strip():
-                                update_payload["password"] = input_password
+                            update_payload = {"name": input_name, "role": input_role}
+                            if input_password.strip(): update_payload["password"] = input_password
 
                             supabase.table("users").update(update_payload).eq("username", current_u.get("username")).execute()
 
-                            # 🌟 ၃။ ဝန်ထမ်းအကောင့်အား ပြင်ဆင်မှု အောင်မြင်ကြောင်း မှတ်ရန်
-                            # ========================================================
-                            # ========================================================
-                            # 🌟 ဖြေရှင်းချက် - တကယ်ပြောင်းလဲသွားသည့် အချက်အလက်များကိုသာ စစ်ထုတ်ခြင်း
-                            # ========================================================
                             user_changes = []
                             target_username = current_u.get('username', 'Unknown')
+                            if current_u.get('name', '').strip() != input_name.strip():
+                                user_changes.append(f"Name: '{current_u.get('name')}' ➡️ '{input_name.strip()}'")
+                            if current_u.get('role', '').strip() != input_role.strip():
+                                user_changes.append(f"Role: '{current_u.get('role')}' ➡️ '{input_role.strip()}'")
+                            if input_password.strip(): user_changes.append("🔑 Password: 'Changed to New Password'")
 
-                            # ၁။ နာမည် (Name) ပြောင်းလဲမှု ရှိမရှိ စစ်ဆေးခြင်း
-                            old_name = current_u.get('name', '').strip()
-                            if old_name != input_name.strip():
-                                user_changes.append(f"Name: '{old_name}' ➡️ '{input_name.strip()}'")
-
-                            # ၂။ ရာထူး (Role) ပြောင်းလဲမှု ရှိမရှိ စစ်ဆေးခြင်း
-                            old_role = current_u.get('role', '').strip()
-                            if old_role != input_role.strip():
-                                user_changes.append(f"Role: '{old_role}' ➡️ '{input_role.strip()}'")
-
-                            # ၃။ စကားဝှက် (Password) အသစ်လဲလိုက်ခြင်း ရှိမရှိ စစ်ဆေးခြင်း
-                            if input_password.strip(): # Password ကွက်လပ်ထဲ စာရိုက်ထည့်ထားမှသာ မှတ်မည်
-                                user_changes.append("🔑 Password: 'Changed to New Password'")
-
-                            # ပြောင်းလဲမှုစာသားအား စနစ်တကျ ပေါင်းစပ်တည်ဆောက်ခြင်း
-                            if user_changes:
-                                account_audit_action = f"Update User ({target_username}) | ⚙️ Changes: {', '.join(user_changes)}"
-                            else:
-                                account_audit_action = f"Update User ({target_username}) | No account data changed"
-
-                            # 🌟 ၃။ ဝန်ထမ်းအကောင့်အား ပြင်ဆင်မှု အောင်မြင်ကြောင်း စမတ်ကျကျ မှတ်သားခြင်း
-                            current_admin = st.session_state["user_info"]["username"]
-                            log_user_activity(
-                                username=current_admin, 
-                                action=account_audit_action, # 💡 ဤနေရာတွင် အပြောင်းအလဲများ ကွက်တိ ဝင်သွားပါမည်ဗျာ ✨
-                                status="Success"
-                            )
+                            account_audit_action = f"Update User ({target_username}) | ⚙️ Changes: {', '.join(user_changes)}" if user_changes else f"Update User ({target_username}) | No account data changed"
+                            log_user_activity(username=st.session_state["user_info"]["username"], action=account_audit_action, status="Success")
 
                             st.success(f"✨ Username: {target_username} updated successfully!")
                             st.session_state["edit_user_mode"] = False
@@ -675,16 +757,14 @@ def main_app():
                             st.session_state["edit_user_mode"] = False
                             st.session_state["edit_user_data"] = None
                             st.rerun()
-
                 else:
-                    # ADD NEW USER FORM
+                    # ➕ ဝန်ထမ်းအကောင့်အသစ်ဆောက်ခြင်း Form
                     st.write("Add New User")
                     with st.form("add_user_form", clear_on_submit=True):
-                        new_name = st.text_input("Name", placeholder="Name")
-                        new_username = st.text_input("Username", placeholder="username")
-                        new_password = st.text_input("Password", type="password", placeholder="password")
+                        new_name = st.text_input("Name")
+                        new_username = st.text_input("Username")
+                        new_password = st.text_input("Password", type="password")
                         new_role = st.selectbox("Define Role", ["user", "super", "admin"])
-                        
                         submit_add = st.form_submit_button("➕ Add New")
 
                         if submit_add:
@@ -694,155 +774,110 @@ def main_app():
                                 check_exist = supabase.table("users").select("username").eq("username", new_username.strip()).execute()
                                 if check_exist.data:
                                     log_user_activity(st.session_state["user_info"]["username"], action="Create User", status="Fail")
-                                    st.error("⚠️ Username already exists. Please choose a different username.")
+                                    st.error("⚠️ Username already exists.")
                                 else:
-                                    insert_payload = {
-                                        "name": new_name.strip(),
-                                        "username": new_username.strip(),
-                                        "password": new_password.strip(),
-                                        "role": new_role,
-                                        "current_session_id": None
-                                    }
+                                    insert_payload = {"name": new_name.strip(), "username": new_username.strip(), "password": new_password.strip(), "role": new_role, "current_session_id": None}
                                     supabase.table("users").insert(insert_payload).execute()
-                                    
-                                    # 🌟 အကောင့်သစ် ဆောက်တာ အောင်မြင်သွားကြောင်း မှတ်ရန်
-                                    current_admin = st.session_state["user_info"]["username"]
-                                    log_user_activity(current_admin, action=f"Create User ({new_username.strip()})", status="Success")
-                                    
-                                    st.success(f"🎉 New user added successfully: {new_name} ({new_username})")
-                                    st.rerun()
+                                    log_user_activity(st.session_state["user_info"]["username"], action=f"Create User ({new_username.strip()})", status="Success")
+                                    st.success(f"🎉 New user added successfully: {new_name}"); st.rerun()
 
                 st.divider()
-                
-                # ========================================================
-                # 3. EDIT & DELETE ACTION BUTTONS (ပြင်ဆင်ရန်နှင့် ဖျက်ရန် ခလုတ်များ)
-                # ========================================================
-                # 🌟 ပြင်ဆင်ချက် - users_list အား တိုက်ရိုက်သိရှိနိုင်ရန် ဤနေရာသို့ နေရာရွှေ့ပေးလိုက်ပါသည်
                 if users_list and not st.session_state["edit_user_mode"]:
                     st.write("🛠️ Select account for update or delete")
-                    
                     user_options = [f"{u.get('name')} ({u.get('username')})" for u in users_list]
                     selected_user_str = st.selectbox("Select an account", user_options)
-                    
                     selected_index = user_options.index(selected_user_str)
                     target_user_data = users_list[selected_index]
 
                     col_act1, col_act2 = st.columns(2)
-                    
                     with col_act1:
                         if st.button("📝 update selected account", use_container_width=True):
                             st.session_state["edit_user_mode"] = True
                             st.session_state["edit_user_data"] = target_user_data
                             st.rerun()
-                            
                     with col_act2:
-                        if target_user_data.get("username") == "admin":
-                            st.warning("🔒 cannot delete 'admin' account")
+                        if target_user_data.get("username") == "admin": st.warning("🔒 cannot delete 'admin' account")
                         else:
                             if st.button("🗑️ delete selected account", use_container_width=True, type="secondary"):
                                 supabase.table("users").delete().eq("username", target_user_data.get("username")).execute()
-
-                                # 🌟 ၄။ ဝန်ထမ်းအကောင့်အား ဖျက်သိမ်းမှု အောင်မြင်ကြောင်း မှတ်ရန်
-                                current_admin = st.session_state["user_info"]["username"]
-                                log_user_activity(current_admin, action=f"Delete User ({target_user_data.get('username')})", status="Success")
-
-                                st.success(f"🗑️ Username: {target_user_data.get('username')} deleted successfully.")
-                                st.rerun()
-
-            # ========================================================
-            # 🌟 အရေးကြီးဆုံးအချက် - ဤနေရာတွင် Function အား လှမ်းခေါ်ခြင်း
-            # ========================================================
+                                log_user_activity(st.session_state["user_info"]["username"], action=f"Delete User ({target_user_data.get('username')})", status="Success")
+                                st.success(f"🗑️ Username: {target_user_data.get('username')} deleted."); st.rerun()
             manage_users_crud()
 
-# 🌟 Column တစ်ခုတည်းဖြင့် အချိန်ကို သန့်ရှင်းစွာမှတ်ပေးမည့် Event-based Log Function
+# 🌟 User Logs များအား မူရင်း Google Sheet 'user_logs' Tab ၏ Column F (status) ပါဝင်အောင် ကွက်တိ ညှိပေးထားသော စနစ်
 def log_user_activity(username, action, status, session_id=None):
-    try:
-        import pytz
-        from datetime import datetime
+    if not ENABLE_SUPABASE:
+        print(f"⏸️ Supabase DISABLED: Skip writing database log for [{action}]")
+    
+    import pytz; from datetime import datetime
+    tz = pytz.timezone('Asia/Yangon')
+    now_mm = datetime.now(tz).isoformat()
+    if not session_id: 
+        session_id = st.session_state.get("current_session_id", "No Active Session")
         
-        # မြန်မာစံတော်ချိန် လက်ရှိ Timestamp အား တိကျစွာ ရယူခြင်း
-        tz = pytz.timezone('Asia/Yangon')
-        now_mm = datetime.now(tz).isoformat()
-        
-        if not session_id:
-            session_id = st.session_state.get("current_session_id", "No Active Session")
-            
-        log_payload = {
-            "username": username,
-            "session_id": session_id,
-            "action": action,
-            "status": status,
-            "action_date_time": now_mm  # 🌟 ဘယ်အလုပ်မဆို ဤ Column တစ်ခုတည်း၌သာ အချိန်ကွက်တိမှတ်ပါမည်
-        }
-        supabase.table("user_logs").insert(log_payload).execute()
-    except Exception as e:
-        print(f"Log Error: {e}")
+    # A. Supabase Database ထဲသို့ Logs ရေးခြင်း
+    if ENABLE_SUPABASE:
+        try:
+            supabase.table("user_logs").insert({
+                "username": username, 
+                "session_id": session_id, 
+                "action": action, 
+                "status": status, 
+                "action_date_time": now_mm
+            }).execute()
+        except Exception as e: 
+            print(f"Supabase Log Error: {e}")
 
-# --- App Entry Point ---
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
+    # B. 🎯 Google Sheet ၏ 'user_logs' ထဲသို့ Column F (status) ပါဝင်အောင် ကွက်တိ သွင်းခြင်း
+    if ENABLE_GOOGLE_SHEET:
+        try:
+            spreadsheet = get_google_sheet()
+            if spreadsheet:
+                log_worksheet = spreadsheet.worksheet("user_logs")
+                
+                # လက်ရှိ Row အရေအတွက်ကို တွက်ချက်ပြီး နောက် Log ID စဉ်နံပါတ် (Column A) ကို ထုတ်ပေးခြင်း
+                next_index = len(log_worksheet.col_values(1))
+                
+                # 🎯 လူကြီးမင်း၏ Google Sheet Headers (A မှ F) အတိုင်း တိကျစွာ ညှိထားပါသည်
+                log_row_value = [
+                    str(next_index),       # Column A: id (ဉ်နံပါတ်)
+                    str(username),         # Column B: username
+                    str(now_mm),           # Column C: action_date_time
+                    str(session_id),       # Column D: session_id
+                    str(action),           # Column E: action
+                    str(status)            # Column F: status (🎯 ဤနေရာတွင် Success / Fail ကွက်တိ ဝင်သွားပါမည်)
+                ]
+                log_worksheet.append_row(log_row_value)
+                print(f"✨ User Log synced to Google Sheet with Status: [{action} - {status}]")
+        except Exception as sheet_log_err:
+            print(f"⚠️ Google Sheet User Log Sync Failed: {str(sheet_log_err)}")
 
-# ====================================================
-# 🌟 LOGOUT မလုပ်ဘဲ Close (X) လုပ်သွားသူများကို လိုက်မှတ်ပေးမည့် စနစ်သစ်
-# ====================================================
 def auto_cleanup_expired_logs():
-    # Session State ကို သုံးပြီး တစ်ခေါက်ပဲ Run စေရန် Lock ခတ်ခြင်း
     if "cleanup_done" not in st.session_state:
         try:
-            from datetime import datetime, timedelta
-            import pytz
-            
+            from datetime import datetime, timedelta; import pytz
             tz = pytz.timezone('Asia/Yangon')
-            # ၃ နာရီထက် ကျော်လွန်နေသော အချိန်ကန့်သတ်ချက် သတ်မှတ်ခြင်း
-            time_limit = datetime.now(tz) - timedelta(hours=3)
-            time_limit_iso = time_limit.isoformat()
+            time_limit_iso = (datetime.now(tz) - timedelta(hours=3)).isoformat()
             
-            # 🌟 ၁။ ၃ နာရီအတွင်း ဘာ Action မှမရှိတော့တဲ့ လတ်တလော Active ဖြစ်နေဆဲ Users များကို ရှာခြင်း
-            # users table ထဲတွင် current_session_id ရှိနေပြီး user_logs ထဲတွင် ၃ နာရီကျော် ဒေတာငြိမ်နေသူများကို စစ်ထုတ်ပါမည်
-            active_users = supabase.table("users").select("username", "current_session_id").not_.is_("current_session_id", "null").execute()
-            
-            if active_users.data:
-                for user in active_users.data:
-                    username = user["username"]
-                    session_id = user["current_session_id"]
-                    
-                    # ၎င်း Session ၏ နောက်ဆုံးလှုပ်ရှားမှုအချိန်ကို ရှာခြင်း
-                    last_log = supabase.table("user_logs") \
-                        .select("action_date_time") \
-                        .eq("session_id", session_id) \
-                        .order("id", descending=True) \
-                        .limit(1) \
-                        .execute()
-                        
-                    if last_log.data:
-                        last_action_time = last_log.data[0]["action_date_time"]
-                        
-                        # 🌟 ၂။ အကယ်၍ နောက်ဆုံးလှုပ်ရှားခဲ့သည့်အချိန်သည် ၃ နာရီထက် ကျော်လွန်နောက်ကျနေပါက
-                        if last_action_time < time_limit_iso:
-                            
-                            # (က) user_logs table ထဲသို့ Browser ပိတ်သွားကြောင်း Row အသစ် (INSERT) သီးသန့်မှတ်ခြင်း
-                            log_user_activity(
-                                username=username,
-                                action="Session Expired (Tab Closed / Inactive)",
-                                status="Success",
-                                session_id=session_id
-                            )
-                            
-                            # (ခ) Users Table ထဲက ပိတ်မိနေသော Session ID အား NULL ချ၍ ကန်ထုတ်ခြင်း
-                            supabase.table("users").update({"current_session_id": None}).eq("username", username).execute()
-            
-            # သန့်ရှင်းရေးလုပ်ပြီးကြောင်း အမှတ်အသားပြုခြင်း
+            if ENABLE_SUPABASE:
+                active_users = supabase.table("users").select("username", "current_session_id").not_.is_("current_session_id", "null").execute()
+                if active_users.data:
+                    for user in active_users.data:
+                        # 🎯 descending=True မှ desc=True သို့ ပြင်ဆင်ထားပါသည်
+                        last_log = supabase.table("user_logs").select("action_date_time").eq("session_id", user["current_session_id"]).order("id", desc=True).limit(1).execute()
+                        if last_log.data and last_log.data[0]["action_date_time"] < time_limit_iso:
+                            log_user_activity(username=user["username"], action="Session Expired", status="Success", session_id=user["current_session_id"])
+                            supabase.table("users").update({"current_session_id": None}).eq("username", user["username"]).execute()
             st.session_state["cleanup_done"] = True
-        except Exception as e:
-            print(f"Cleanup Error: {e}")
-# --- App Entry Point ---
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
+        except Exception as e: print(f"Cleanup Error: {e}")
 
-# 🌟 Form တွေ ထပ်မနေစေရန်အတွက် ရှင်းလင်းသော ဖွဲ့စည်းမှု Logic
+# ====================================================
+# 🚀 APP ENTRY POINT & RUNTIME LIFE CYCLE
+# ====================================================
+if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
+
 if not st.session_state["logged_in"]:
     login_form()
 else:
-    # Login ဝင်ပြီးမှသာ နောက်ကွယ်က သန့်ရှင်းရေးလုပ်ငန်းကို လုပ်ဆောင်ပြီး Main App ကို ပြသမည်
     auto_cleanup_expired_logs()
     main_app()
