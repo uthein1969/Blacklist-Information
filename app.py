@@ -805,59 +805,73 @@ def main_app():
             manage_users_crud()
 
 def log_user_activity(username, action, status, session_id=None):
-    if not ENABLE_SUPABASE:
-        print(f"⏸️ Supabase DISABLED: Skip writing database log for [{action}]")
+    import pytz
+    from datetime import datetime
     
-    import pytz; from datetime import datetime
+    # 🎯 Streamlit Framework အောက်တွင် အလုပ်လုပ်စေရန် သေချာစေခြင်း
+    import streamlit as st
+    
+    # Static check ညှိနှိုင်းမှု
+    current_enable_supabase = globals().get('ENABLE_SUPABASE', True)
+    current_enable_sheet = globals().get('ENABLE_GOOGLE_SHEET', True)
+    
     tz = pytz.timezone('Asia/Yangon')
     now_mm = datetime.now(tz).isoformat()
-    if not session_id: 
-        session_id = st.session_state.get("current_session_id", "No Active Session")
-        
-    # A. Supabase Database ထဲသို့ Logs ရေးခြင်း
-    if ENABLE_SUPABASE:
-        try:
-            supabase.table("user_logs").insert({
-                "username": username, 
-                "session_id": session_id, 
-                "action": action, 
-                "status": status, 
-                "action_date_time": now_mm
-            }).execute()
-        except Exception as e: 
-            print(f"Supabase Log Error: {e}")
+    
+    # 🎯 Session ID မပါလာပါက Streamlit Session State သို့မဟုတ် Backup စာသားသုံးရန်
+    if not session_id:
+        if "current_session_id" in st.session_state and st.session_state["current_session_id"]:
+            session_id = st.session_state["current_session_id"]
+        else:
+            session_id = "ST-LIVE-SESSION"
+            
+    # Username ဗလာဖြစ်နေပါက ယာယီအသုံးပြုသူအမည် သတ်မှတ်ခြင်း
+    if not username:
+        if "user_info" in st.session_state and st.session_state["user_info"]:
+            username = st.session_state["user_info"].get("username", "system_user")
+        else:
+            username = "system_user"
 
-    # B. 🎯 Google Sheet ၏ 'user_logs' ထဲသို့ စနစ်တကျ သွင်းခြင်း (Debug Mode ပါဝင်သည်)
-    if ENABLE_GOOGLE_SHEET:
+    # A. Supabase Database ထဲသို့ Logs ရေးခြင်း
+    if current_enable_supabase:
         try:
-            spreadsheet = get_google_sheet()
-            if spreadsheet:
-                log_worksheet = spreadsheet.worksheet("user_logs")
-                
-                # Column A (id) ထဲရှိ စာရင်းကိုဖတ်ပြီး စဉ်နံပါတ် တွက်ချက်ခြင်း
-                col_a_values = log_worksheet.col_values(1)
-                next_index = len(col_a_values)
-                if next_index <= 1:
-                    next_index = 1
-                
-                log_row_value = [
-                    str(next_index),       # Column A: id
-                    str(username),         # Column B: username
-                    str(now_mm),           # Column C: action_date_time
-                    str(session_id),       # Column D: session_id
-                    str(action),           # Column E: action
-                    str(status)            # Column F: status
-                ]
-                
-                # 🎯 နေရာလွတ် ပြဿနာများကို ကျော်လွှားရန် ဒုတိယမြောက် Row တည့်တည့်သို့ ညှပ်ထည့် (Insert) ခိုင်းခြင်း
-                # Header ရဲ့ အောက်ခြေတည့်တည့်မှာ Row အသစ်တိုးပြီး ထည့်သွားမည့် စနစ်ဖြစ်ပါတယ်
-                log_worksheet.insert_row(log_row_value, index=2, value_input_option='USER_ENTERED')
-                print(f"✨ User Log synced to Google Sheet Success!")
-                
+            # 🎯 global scope ထဲမှ supabase client အား တိုက်ရိုက်ဆွဲသုံးခြင်း
+            global_supabase = globals().get('supabase')
+            if global_supabase:
+                global_supabase.table("user_logs").insert({
+                    "username": str(username), 
+                    "session_id": str(session_id), 
+                    "action": str(action), 
+                    "status": str(status), 
+                    "action_date_time": now_mm
+                }).execute()
+        except Exception as e: 
+            print(f"Supabase Log Error under Streamlit: {e}")
+
+    # B. 🎯 Google Sheet ၏ 'user_logs' ထဲသို့ သွင်းခြင်း
+    if current_enable_sheet:
+        try:
+            # 🎯 global scope ထဲမှ get_google_sheet အား တိုက်ရိုက်ခေါ်ယူခြင်း
+            get_sheet_fn = globals().get('get_google_sheet')
+            if get_sheet_fn:
+                spreadsheet = get_sheet_fn()
+                if spreadsheet:
+                    log_worksheet = spreadsheet.worksheet("user_logs")
+                    
+                    log_row_value = [
+                        "AUTO",               # Column A: id (Google Sheet auto စဉ်ပေးရန် သို့မဟုတ် သီးသန့် ID)
+                        str(username),         # Column B: username
+                        str(now_mm),           # Column C: action_date_time
+                        str(session_id),       # Column D: session_id
+                        str(action),           # Column E: action
+                        str(status)            # Column F: status
+                    ]
+                    
+                    # Row 2 (Header အောက်) ထဲသို့ တိုက်ရိုက် ညှပ်ထည့်ခြင်း
+                    log_worksheet.insert_row(log_row_value, index=2, value_input_option='USER_ENTERED')
+                    print(f"✨ Streamlit Log successfully synced to Google Sheet!")
         except Exception as sheet_log_err:
-            # 🚨 Google Sheet ထဲ ဒေတာမဝင်ရသည့် အကြောင်းရင်းရင်းမြစ်ကို Screen ပေါ်တွင် အနီရောင်စာသားဖြင့် ထုတ်ပြရန်
-            st.error(f"⚠️ Google Sheet Log Sync Error: {str(sheet_log_err)}")
-            print(f"⚠️ Google Sheet User Log Sync Failed: {str(sheet_log_err)}")
+            print(f"⚠️ Streamlit UI Sheet Log Sync Failed: {str(sheet_log_err)}")
 
 def auto_cleanup_expired_logs():
     if "cleanup_done" not in st.session_state:
