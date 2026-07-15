@@ -36,7 +36,6 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
-    import base64  # 🎯 Base64 decode လုပ်ရန် ထည့်သွင်းခြင်း
     from google.oauth2.service_account import Credentials
 
     try:
@@ -56,21 +55,21 @@ def get_google_sheet():
                 client = gspread.authorize(creds)
                 return client.open("Blacklist_Information")
             except Exception as file_err:
-                print(f"File mode failed, rolling to secrets: {file_err}")
+                print(f"File mode failed: {file_err}")
             
-        # 2️⃣ CLOUD MODE (Base64 Safe Decryption စနစ်သစ်)
+        # 2️⃣ CLOUD MODE (Pure ASCII Re-construction Method)
         if "gcp_type" in st.secrets:
-            # 🎯 [THE ULTIMATE BASE64 FIX] Secrets Layer မှ formatting အမှားအားလုံးကို 
-            # binary အဆင့်တွင် တိုက်ရိုက်ရှင်းထုတ်ပြီး standard newline ဖြင့် ကွက်တိပြန်ဖွဲ့ခြင်း
-            b64_key = st.secrets["gcp_private_key_b64"].strip()
-            decoded_bytes = base64.b64decode(b64_key)
-            fixed_key = decoded_bytes.decode("utf-8").replace("\\n", "\n").strip()
+            # 🎯 Secrets ထဲက သန့်စင်ပြီးသား single-line စာသားကို ယူပါတယ်
+            raw_key_content = st.secrets["gcp_private_key_clean"].strip()
+            
+            # Google Authentication Engine က တောင်းဆိုတဲ့ RSA Format အတိုင်း ကုဒ်ထဲကနေ အလိုအလျောက် စနစ်တကျ ပြန်ဖွဲ့စည်းပေးပါတယ်
+            formatted_private_key = f"-----BEGIN PRIVATE KEY-----\n{raw_key_content}\n-----END PRIVATE KEY-----\n"
             
             creds_dict = {
                 "type": st.secrets["gcp_type"],
                 "project_id": st.secrets["gcp_project_id"],
                 "private_key_id": st.secrets["gcp_private_key_id"],
-                "private_key": fixed_key,
+                "private_key": formatted_private_key,
                 "client_email": st.secrets["gcp_client_email"],
                 "client_id": st.secrets["gcp_client_id"],
                 "auth_uri": st.secrets["gcp_auth_uri"],
