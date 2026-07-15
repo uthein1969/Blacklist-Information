@@ -48,21 +48,30 @@ def get_google_sheet():
         
         json_key_file = "gen-lang-client-0490646413-a25b1a1118b6.json"
         
-        # 1️⃣ LOCAL MODE (စက်ထဲတွင် JSON ဖိုင်ရှိလျှင် ၎င်းအတိုင်းပုံမှန်မောင်းနှင်သည်)
+        # 1️⃣ LOCAL MODE
         if os.path.exists(json_key_file):
             creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
             client = gspread.authorize(creds)
             return client.open("Blacklist_Information")
             
-        # 2️⃣ CLOUD MODE (Flat Secrets အား ဒိုင်နမစ်စနစ်ဖြင့် စုစည်းတည်ဆောက်ခြင်း)
+        # 2️⃣ CLOUD MODE (ကျစ်လျစ်ခိုင်မာသော နောက်ဆုံးပိတ်စနစ်)
         else:
-            # လိုအပ်သော flat keys များ အားလုံး Streamlit Secrets ထဲတွင် ရှိမရှိ အသေအချာစစ်ဆေးခြင်း
             if "gcp_type" in st.secrets:
+                # 🎯 private_key ထဲတွင် ညှပ်ပါလာနိုင်သော header/footer formatting များကို အစအဆုံး စနစ်တကျ ရှင်းထုတ်ခြင်း
+                raw_key = st.secrets["gcp_private_key"]
+                
+                # အကယ်၍ string အဖြစ် သတ်မှတ်စဉ်က literal \n များ ပါလာပါက ၎င်းတို့ကို တကယ့် line break သို့ ပြောင်းလဲခြင်း
+                if "\\n" in raw_key:
+                    fixed_key = raw_key.replace("\\n", "\n")
+                else:
+                    # Multi-line string ဖြစ်နေပါကလည်း ကီး၏ ဘေးပတ်ပတ်လည်ရှိ space များကို သန့်ရှင်းရေးလုပ်ပေးပါတယ်
+                    fixed_key = raw_key.strip()
+                
                 creds_dict = {
                     "type": st.secrets["gcp_type"],
                     "project_id": st.secrets["gcp_project_id"],
                     "private_key_id": st.secrets["gcp_private_key_id"],
-                    "private_key": st.secrets["gcp_private_key"].strip(),
+                    "private_key": fixed_key, # 🎯 သန့်ရှင်းပြီးသား ကီးကို သုံးစွဲခြင်း
                     "client_email": st.secrets["gcp_client_email"],
                     "client_id": st.secrets["gcp_client_id"],
                     "auth_uri": st.secrets["gcp_auth_uri"],
