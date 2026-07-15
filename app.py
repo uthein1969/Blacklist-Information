@@ -36,7 +36,7 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
-    # 🎯 oauth2client အစား ပိုမိုခိုင်မာသော google-auth library သို့ ပြောင်းလဲအသုံးပြုခြင်း
+    import json  # 🎯 JSON parsing အတွက် ထည့်သွင်းခြင်း
     from google.oauth2.service_account import Credentials
 
     try:
@@ -49,30 +49,27 @@ def get_google_sheet():
         
         json_key_file = "gen-lang-client-0490646413-a25b1a1118b6.json"
         
-        # 1️⃣ [LOCAL MODE]
+        # 1️⃣ LOCAL MODE
         if os.path.exists(json_key_file):
             creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
             client = gspread.authorize(creds)
             return client.open("Blacklist_Information")
             
-        # 2️⃣ [CLOUD MODE]
+        # 2️⃣ CLOUD MODE (JSON String အား Direct Parse လုပ်သည့် စနစ်သစ်)
         else:
-            if "gcp_service_account" in st.secrets:
-                creds_dict = dict(st.secrets["gcp_service_account"])
+            if "gcp_service_account_json" in st.secrets:
+                # String အဖြစ် ဝင်လာသော JSON ကို သန့်ရှင်းစွာ အလိုအလျောက် Object ပြန်ပြောင်းခြင်း
+                json_string = st.secrets["gcp_service_account_json"]
+                creds_dict = json.loads(json_string)
                 
-                # private_key ထဲက အပိုစာသားများနှင့် format များကို စနစ်တကျ ပြန်လည်ရှင်းလင်းခြင်း
+                # Internal private key escape characters ကို auto-verify လုပ်ပါတယ်
                 if "private_key" in creds_dict:
-                    raw_key = creds_dict["private_key"]
-                    # escape character များနှင့် text break ပြဿနာများကို ရှင်းထုတ်ပါတယ်
-                    fixed_key = raw_key.replace("\\n", "\n").strip()
-                    creds_dict["private_key"] = fixed_key
+                    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip()
                 
-                # 🎯 google.oauth2 credentials သို့ တိုက်ရိုက် pass လုပ်ခြင်း
                 creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
                 client = gspread.authorize(creds)
                 return client.open("Blacklist_Information")
             else:
-                st.error("🚨 st.secrets ထဲတွင် gcp_service_account ကို ရှာမတွေ့ပါဗျာ။")
                 return None
         
     except Exception as e:
