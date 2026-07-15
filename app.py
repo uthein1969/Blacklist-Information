@@ -33,6 +33,12 @@ import requests
 import os  # 🎯 ဖိုင်ရှိ/မရှိ စစ်ဆေးရန်အတွက်
 
 def get_google_sheet():
+    import gspread
+    import streamlit as st
+    import os
+    # 🎯 oauth2client အစား ပိုမိုခိုင်မာသော google-auth library သို့ ပြောင်းလဲအသုံးပြုခြင်း
+    from google.oauth2.service_account import Credentials
+
     try:
         scopes = [
             "https://spreadsheets.google.com/feeds",
@@ -43,26 +49,33 @@ def get_google_sheet():
         
         json_key_file = "gen-lang-client-0490646413-a25b1a1118b6.json"
         
-        # 1️⃣ Local Mode
+        # 1️⃣ [LOCAL MODE]
         if os.path.exists(json_key_file):
-            creds = ServiceAccountCredentials.from_json_keyfile_name(json_key_file, scopes)
+            creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
             client = gspread.authorize(creds)
             return client.open("Blacklist_Information")
             
-        # 2️⃣ Cloud Mode
+        # 2️⃣ [CLOUD MODE]
         else:
-            # 🚨 Cloud ပေါ်မှာ Secrets ကို တကယ်ဖတ်လို့ရလား သိရအောင် Screen ပေါ်မှာ စမ်းထုတ်ကြည့်ခြင်း
-            if "gcp_service_account" not in st.secrets:
-                st.error("🚨 [CRITICAL] st.secrets ထဲမှာ gcp_service_account ကို ရှာမတွေ့ပါဗျာ။ Secrets ထည့်ထားတာ မမှန်သေးပါဘူး။")
-                return None
+            if "gcp_service_account" in st.secrets:
+                creds_dict = dict(st.secrets["gcp_service_account"])
                 
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scopes)
-            client = gspread.authorize(creds)
-            return client.open("Blacklist_Information")
+                # private_key ထဲက အပိုစာသားများနှင့် format များကို စနစ်တကျ ပြန်လည်ရှင်းလင်းခြင်း
+                if "private_key" in creds_dict:
+                    raw_key = creds_dict["private_key"]
+                    # escape character များနှင့် text break ပြဿနာများကို ရှင်းထုတ်ပါတယ်
+                    fixed_key = raw_key.replace("\\n", "\n").strip()
+                    creds_dict["private_key"] = fixed_key
+                
+                # 🎯 google.oauth2 credentials သို့ တိုက်ရိုက် pass လုပ်ခြင်း
+                creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+                client = gspread.authorize(creds)
+                return client.open("Blacklist_Information")
+            else:
+                st.error("🚨 st.secrets ထဲတွင် gcp_service_account ကို ရှာမတွေ့ပါဗျာ။")
+                return None
         
     except Exception as e:
-        # 🚨 ဘာ Error တက်လဲဆိုတာ စခရင်ပေါ်မှာ အတင်းပြခိုင်းခြင်း
         st.error(f"❌ Google Sheet Connection Error: {str(e)}")
         return None
 
