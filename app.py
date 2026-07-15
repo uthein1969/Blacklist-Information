@@ -24,10 +24,13 @@ def check_login(username, password):
 
 
 # ========================================================
-# 🛡️ GOOGLE SHEETS REAL-TIME SYNC SYSTEM (UPDATED METHOD)
+# 🛡️ GOOGLE SHEETS REAL-TIME SYNC SYSTEM (SAFE HYBRID METHOD)
 # ========================================================
 import gspread
+import streamlit as st
 from oauth2client.service_account import ServiceAccountCredentials
+import requests
+import os  # 🎯 ဖိုင်ရှိ/မရှိ စစ်ဆေးရန်အတွက်
 
 def get_google_sheet():
     try:
@@ -39,15 +42,32 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 🎯 လူကြီးမင်း၏ JSON ဖိုင်အမည်နှင့် တစ်လုံးမကျန် ကွက်တိတူအောင် သတ်မှတ်ထားပါသည်
         json_key_file = "gen-lang-client-0490646413-a25b1a1118b6.json"
         
-        creds = ServiceAccountCredentials.from_json_keyfile_name(json_key_file, scopes)
-        client = gspread.authorize(creds)
+        # 1️⃣ [LOCAL FIRST] စက်ထဲတွင် JSON ကီးဖိုင်အစစ် ရှိနေပါက ၎င်းကို အရင်ဦးဆုံး သုံးစွဲရန်
+        if os.path.exists(json_key_file):
+            creds = ServiceAccountCredentials.from_json_keyfile_name(json_key_file, scopes)
+            client = gspread.authorize(creds)
+            print("💻 [LOCAL] Connected to Google Sheet using JSON file successfully.")
+            
+        # 2️⃣ [CLOUD FALLBACK] JSON ဖိုင် မရှိတော့မှသာ Streamlit Cloud Secrets ထဲက TOML ကို ဖတ်ရန်
+        else:
+            try:
+                if "gcp_service_account" in st.secrets:
+                    creds_dict = dict(st.secrets["gcp_service_account"])
+                    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scopes)
+                    client = gspread.authorize(creds)
+                    print("☁️ [CLOUD] Connected to Google Sheet using Streamlit Secrets successfully.")
+                else:
+                    raise Exception("gcp_service_account not found in st.secrets")
+            except Exception as secret_err:
+                # Local ကော Cloud Secrets ပါ နှစ်ခုလုံး မရှိလျှင် တရားဝင် Error ပြရန်
+                raise Exception(f"No credential source found (JSON file missing and Secrets not configured). Detail: {str(secret_err)}")
         
-        # 🎯 လူကြီးမင်း၏ Google Sheet အမည် 'Blacklist_Information' ဖြစ်ကြောင်း သေချာပါစေ
+        # 🎯 လူကြီးမင်း၏ Google Sheet အမည် 'Blacklist_Information' ကို လှမ်းဖွင့်ခြင်း
         spreadsheet = client.open("Blacklist_Information")
         return spreadsheet
+        
     except Exception as e:
         print(f"❌ Google Sheet Connection Failed: {str(e)}")
         return None
