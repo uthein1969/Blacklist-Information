@@ -36,6 +36,7 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
+    import json
     from google.oauth2.service_account import Credentials
 
     try:
@@ -46,8 +47,7 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 🎯 [LOCAL VS CODE MODE] လက်ရှိ Folder ထဲတွင် ရှိနေသော JSON ဖိုင်အသစ်အား တိုက်ရိုက်ဖတ်ခြင်း
-        # ဤစနစ်သည် VS Code တွင် Run ပါက အောက်ခြေ Secrets သို့ မဆင်းဘဲ ဖိုင်ကို တိုက်ရိုက်ဖတ်သဖြင့် လုံးဝ Error ကင်းပါသည်
+        # 1️⃣ LOCAL MODE (VS Code တွင် ဒေတာပုံမှန်ဝင်စေရန် ဖိုင်တိုက်ရိုက်ဖတ်စနစ်)
         json_key_file = "gen-lang-client-0490646413-832d079930fb.json"
         
         if os.path.exists(json_key_file):
@@ -55,30 +55,10 @@ def get_google_sheet():
             client = gspread.authorize(creds)
             return client.open("Blacklist_Information")
             
-        # 🎯 [STREAMLIT CLOUD MODE] Cloud ပေါ်တွင် JSON ဖိုင်မရှိပါက Secrets မှ ဖတ်သည့်စနစ်
-        elif "gcp_type" in st.secrets:
-            raw_key = st.secrets["gcp_private_key"].strip()
-            
-            # 🔗 \\n များကို တကယ့် newline Character စစ်စစ်အဖြစ် ပြောင်းလဲပေးခြင်း (ကျန်ရှိသော space များကို သန့်စင်ပါသည်)
-            if "-----BEGIN PRIVATE KEY-----" not in raw_key:
-                # အကယ်၍ header မပါပါက စနစ်တကျ ပတ်ပေးခြင်း
-                formatted_private_key = f"-----BEGIN PRIVATE KEY-----\n{raw_key}\n-----END PRIVATE KEY-----\n"
-            else:
-                formatted_private_key = raw_key.replace("\\n", "\n")
-                
-            creds_dict = {
-                "type": st.secrets["gcp_type"],
-                "project_id": st.secrets["gcp_project_id"],
-                "private_key_id": st.secrets["gcp_private_key_id"],
-                "private_key": formatted_private_key,
-                "client_email": st.secrets["gcp_client_email"],
-                "client_id": st.secrets["gcp_client_id"],
-                "auth_uri": st.secrets["gcp_auth_uri"],
-                "token_uri": st.secrets["gcp_token_uri"],
-                "auth_provider_x509_cert_url": st.secrets["gcp_auth_provider_x509_cert_url"],
-                "client_x509_cert_url": st.secrets["gcp_client_x509_cert_url"],
-                "universe_domain": st.secrets.get("gcp_universe_domain", "googleapis.com")
-            }
+        # 2️⃣ STREAMLIT CLOUD MODE (Secrets သို့ ရောက်ပါက JSON String ဖြင့် Error ကင်းစင်စွာ ဖတ်သည့်စနစ်)
+        elif "gcp_json_string" in st.secrets:
+            json_text = st.secrets["gcp_json_string"]
+            creds_dict = json.loads(json_text)
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             client = gspread.authorize(creds)
             return client.open("Blacklist_Information")
