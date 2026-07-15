@@ -36,6 +36,7 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
+    import base64  # 🎯 Base64 decode လုပ်ရန် ထည့်သွင်းခြင်း
     from google.oauth2.service_account import Credentials
 
     try:
@@ -48,37 +49,28 @@ def get_google_sheet():
         
         json_key_file = "gen-lang-client-0490646413-a25b1a1118b6.json"
         
-        # 1️⃣ [LOCAL သို့မဟုတ် GITHUB JSON EMBED MODE]
+        # 1️⃣ LOCAL MODE
         if os.path.exists(json_key_file):
             try:
                 creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
                 client = gspread.authorize(creds)
                 return client.open("Blacklist_Information")
             except Exception as file_err:
-                # ဖိုင်ဖတ်ရာတွင် cryptographic error တစ်ခုခုတက်ပါက အောက်ခြေ Secrets သို့ Fallback ဆင်းရန်
-                print(f"File mode failed: {file_err}")
+                print(f"File mode failed, rolling to secrets: {file_err}")
             
-        # 2️⃣ [STREAMLIT SECRETS CLOUD MODE]
+        # 2️⃣ CLOUD MODE (Base64 Safe Decryption စနစ်သစ်)
         if "gcp_type" in st.secrets:
-            raw_key = st.secrets["gcp_private_key"]
-            
-            # 🎯 [THE CRITICAL FIX] ဘယ်လိုပုံစံနဲ့ သိမ်းသိမ်း ညှပ်ပါလာမယ့် space အပိုများနှင့် 
-            # line-break အမှားအားလုံးကို cryptographic standard အတိုင်း စင်ကြယ်အောင် ရှင်းထုတ်ခြင်း
-            # header နှင့် footer ကြားမှ ကီးစာသားများကို စနစ်တကျ ပြန်လည် သန့်စင်ပါတယ်
-            if "-----BEGIN PRIVATE KEY-----" in raw_key:
-                # literal \n များကို တကယ့် newline ပြောင်းပါတယ်
-                fixed_key = raw_key.replace("\\n", "\n")
-                # လိုင်းတစ်ခုချင်းစီကြားထဲက မလိုအပ်တဲ့ space အပိုတွေကို လုံးဝဖယ်ရှားပစ်ပါတယ်
-                lines = [line.strip() for line in fixed_key.split("\n") if line.strip()]
-                fixed_key = "\n".join(lines)
-            else:
-                fixed_key = raw_key.strip()
+            # 🎯 [THE ULTIMATE BASE64 FIX] Secrets Layer မှ formatting အမှားအားလုံးကို 
+            # binary အဆင့်တွင် တိုက်ရိုက်ရှင်းထုတ်ပြီး standard newline ဖြင့် ကွက်တိပြန်ဖွဲ့ခြင်း
+            b64_key = st.secrets["gcp_private_key_b64"].strip()
+            decoded_bytes = base64.b64decode(b64_key)
+            fixed_key = decoded_bytes.decode("utf-8").replace("\\n", "\n").strip()
             
             creds_dict = {
                 "type": st.secrets["gcp_type"],
                 "project_id": st.secrets["gcp_project_id"],
                 "private_key_id": st.secrets["gcp_private_key_id"],
-                "private_key": fixed_key, # 🎯 သန့်ရှင်းပြီးသား ကီးကို သုံးစွဲခြင်း
+                "private_key": fixed_key,
                 "client_email": st.secrets["gcp_client_email"],
                 "client_id": st.secrets["gcp_client_id"],
                 "auth_uri": st.secrets["gcp_auth_uri"],
