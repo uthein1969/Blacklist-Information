@@ -35,7 +35,6 @@ import os  # 🎯 ဖိုင်ရှိ/မရှိ စစ်ဆေးရန
 def get_google_sheet():
     import gspread
     import streamlit as st
-    import os
     import re
     from google.oauth2.service_account import Credentials
 
@@ -47,26 +46,15 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        json_key_file = "gen-lang-client-0490646413-e463ed18ea5a.json"
-        
-        # 1️⃣ GitHub JSON Embedded Mode
-        if os.path.exists(json_key_file):
-            try:
-                creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
-                client = gspread.authorize(creds)
-                return client.open("Blacklist_Information")
-            except Exception as file_err:
-                print(f"File mode failed: {file_err}")
-            
-        # 2️⃣ Streamlit Secrets Mode (၁၀၀% စိတ်ချရသော RSA Formatting Block)
+        # 🎯 GitHub ပေါ်သို့ JSON ဖိုင်တင်စရာမလိုဘဲ Secrets မှ Secure ဖြစ်စွာ တိုက်ရိုက်ဖတ်သည့်စနစ်
         if "gcp_type" in st.secrets:
             raw_key = st.secrets["gcp_private_key"]
             
-            # 🎯 ကီးအသစ်ထဲက မလိုအပ်တဲ့ headers, newlines နဲ့ spaces တွေအားလုံးကို လုံးဝပြောင်စင်အောင် အရင်ဖယ်ထုတ်ခြင်း
+            # ကီးထဲမှ space နှင့် newline အမှားများအားလုံးကို သန့်စင်ခြင်း
             key_body = raw_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
             key_body = key_body.replace("\\n", "").replace("\n", "").replace(" ", "").strip()
             
-            # 🔗 Cryptography Engine က အလိုရှိတဲ့ Standard 64-character blocks ဖြင့် Newline ခံပြီး သေသပ်စွာ ပြန်စီခြင်း
+            # Standard 64-character PEM block အဖြစ် အလိုအလျောက် ပြန်စီပေးခြင်း
             chunks = re.findall(r'.{1,64}', key_body)
             formatted_private_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
             
