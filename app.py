@@ -36,6 +36,7 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
+    import re
     from google.oauth2.service_account import Credentials
 
     try:
@@ -46,30 +47,34 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        json_key_file = "gen-lang-client-0490646413-a25b1a1118b6.json"
+        json_key_file = "gen-lang-client-0490646413-e463ed18ea5a.json"
         
-        # 1️⃣ LOCAL MODE
+        # 1️⃣ GitHub JSON Embedded Mode
         if os.path.exists(json_key_file):
             try:
                 creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
                 client = gspread.authorize(creds)
                 return client.open("Blacklist_Information")
             except Exception as file_err:
-                print(f"File mode failed, rolling to secrets: {file_err}")
+                print(f"File mode failed: {file_err}")
             
-        # 2️⃣ CLOUD MODE (Escaped String Dynamic Parsing Method)
+        # 2️⃣ Streamlit Secrets Mode (၁၀၀% စိတ်ချရသော RSA Formatting Block)
         if "gcp_type" in st.secrets:
-            # Secrets ထဲက Double Backslash ပါတဲ့ တစ်ဆက်တည်းကီးကို ယူပါတယ်
             raw_key = st.secrets["gcp_private_key"]
             
-            # 🎯 [THE FINAL ESCAPE FIX] \\n များကို တကယ့် Cryptographic Newline (\n) အဖြစ် အတိအကျ ပြောင်းလဲခြင်း
-            fixed_key = raw_key.replace("\\n", "\n").strip()
+            # 🎯 ကီးအသစ်ထဲက မလိုအပ်တဲ့ headers, newlines နဲ့ spaces တွေအားလုံးကို လုံးဝပြောင်စင်အောင် အရင်ဖယ်ထုတ်ခြင်း
+            key_body = raw_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
+            key_body = key_body.replace("\\n", "").replace("\n", "").replace(" ", "").strip()
+            
+            # 🔗 Cryptography Engine က အလိုရှိတဲ့ Standard 64-character blocks ဖြင့် Newline ခံပြီး သေသပ်စွာ ပြန်စီခြင်း
+            chunks = re.findall(r'.{1,64}', key_body)
+            formatted_private_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
             
             creds_dict = {
                 "type": st.secrets["gcp_type"],
                 "project_id": st.secrets["gcp_project_id"],
                 "private_key_id": st.secrets["gcp_private_key_id"],
-                "private_key": fixed_key,
+                "private_key": formatted_private_key,
                 "client_email": st.secrets["gcp_client_email"],
                 "client_id": st.secrets["gcp_client_id"],
                 "auth_uri": st.secrets["gcp_auth_uri"],
