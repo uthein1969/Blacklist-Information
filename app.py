@@ -48,30 +48,26 @@ def get_google_sheet():
         
         json_key_file = "gen-lang-client-0490646413-a25b1a1118b6.json"
         
-        # 1️⃣ LOCAL MODE
+        # 🎯 GitHub ပေါ်သို့ တင်လိုက်သော JSON ဖိုင်ရှိမရှိ စစ်ဆေးခြင်း
         if os.path.exists(json_key_file):
             creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
             client = gspread.authorize(creds)
             return client.open("Blacklist_Information")
             
-        # 2️⃣ CLOUD MODE (ကျစ်လျစ်ခိုင်မာသော နောက်ဆုံးပိတ်စနစ်)
+        # fallback system (Secrets ထဲမှ Flat စနစ်ဖြင့်လည်း အရန်စစ်ဆေးထားပေးပါသည်)
         else:
             if "gcp_type" in st.secrets:
-                # 🎯 private_key ထဲတွင် ညှပ်ပါလာနိုင်သော header/footer formatting များကို အစအဆုံး စနစ်တကျ ရှင်းထုတ်ခြင်း
-                raw_key = st.secrets["gcp_private_key"]
-                
-                # အကယ်၍ string အဖြစ် သတ်မှတ်စဉ်က literal \n များ ပါလာပါက ၎င်းတို့ကို တကယ့် line break သို့ ပြောင်းလဲခြင်း
-                if "\\n" in raw_key:
-                    fixed_key = raw_key.replace("\\n", "\n")
-                else:
-                    # Multi-line string ဖြစ်နေပါကလည်း ကီး၏ ဘေးပတ်ပတ်လည်ရှိ space များကို သန့်ရှင်းရေးလုပ်ပေးပါတယ်
-                    fixed_key = raw_key.strip()
+                # TOML Parser ပြဿနာကြောင့် line breaks များကို အတင်းသန့်စင်ပစ်ခြင်း
+                clean_key = st.secrets["gcp_private_key"].replace("\\n", "\n").strip()
+                # အကယ်၍ line character သာမန်အတိုင်းရှိနေပါက အနားသတ်များကို ရှင်းထုတ်ခြင်း
+                if "-----BEGIN PRIVATE KEY-----" in clean_key:
+                    pass
                 
                 creds_dict = {
                     "type": st.secrets["gcp_type"],
                     "project_id": st.secrets["gcp_project_id"],
                     "private_key_id": st.secrets["gcp_private_key_id"],
-                    "private_key": fixed_key, # 🎯 သန့်ရှင်းပြီးသား ကီးကို သုံးစွဲခြင်း
+                    "private_key": clean_key,
                     "client_email": st.secrets["gcp_client_email"],
                     "client_id": st.secrets["gcp_client_id"],
                     "auth_uri": st.secrets["gcp_auth_uri"],
@@ -80,7 +76,6 @@ def get_google_sheet():
                     "client_x509_cert_url": st.secrets["gcp_client_x509_cert_url"],
                     "universe_domain": st.secrets.get("gcp_universe_domain", "googleapis.com")
                 }
-                
                 creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
                 client = gspread.authorize(creds)
                 return client.open("Blacklist_Information")
