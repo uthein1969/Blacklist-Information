@@ -35,7 +35,7 @@ import os  # 🎯 ဖိုင်ရှိ/မရှိ စစ်ဆေးရန
 def get_google_sheet():
     import gspread
     import streamlit as st
-    import re
+    import os
     from google.oauth2.service_account import Credentials
 
     try:
@@ -46,18 +46,26 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 🎯 GitHub ပေါ်သို့ JSON ဖိုင်တင်စရာမလိုဘဲ Secrets မှ Secure ဖြစ်စွာ တိုက်ရိုက်ဖတ်သည့်စနစ်
-        if "gcp_type" in st.secrets:
-            raw_key = st.secrets["gcp_private_key"]
+        # 🎯 [LOCAL VS CODE MODE] လက်ရှိ Folder ထဲတွင် ရှိနေသော JSON ဖိုင်အသစ်အား တိုက်ရိုက်ဖတ်ခြင်း
+        # ဤစနစ်သည် VS Code တွင် Run ပါက အောက်ခြေ Secrets သို့ မဆင်းဘဲ ဖိုင်ကို တိုက်ရိုက်ဖတ်သဖြင့် လုံးဝ Error ကင်းပါသည်
+        json_key_file = "gen-lang-client-0490646413-832d079930fb.json"
+        
+        if os.path.exists(json_key_file):
+            creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
+            client = gspread.authorize(creds)
+            return client.open("Blacklist_Information")
             
-            # ကီးထဲမှ space နှင့် newline အမှားများအားလုံးကို သန့်စင်ခြင်း
-            key_body = raw_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
-            key_body = key_body.replace("\\n", "").replace("\n", "").replace(" ", "").strip()
+        # 🎯 [STREAMLIT CLOUD MODE] Cloud ပေါ်တွင် JSON ဖိုင်မရှိပါက Secrets မှ ဖတ်သည့်စနစ်
+        elif "gcp_type" in st.secrets:
+            raw_key = st.secrets["gcp_private_key"].strip()
             
-            # Standard 64-character PEM block အဖြစ် အလိုအလျောက် ပြန်စီပေးခြင်း
-            chunks = re.findall(r'.{1,64}', key_body)
-            formatted_private_key = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(chunks) + "\n-----END PRIVATE KEY-----\n"
-            
+            # 🔗 \\n များကို တကယ့် newline Character စစ်စစ်အဖြစ် ပြောင်းလဲပေးခြင်း (ကျန်ရှိသော space များကို သန့်စင်ပါသည်)
+            if "-----BEGIN PRIVATE KEY-----" not in raw_key:
+                # အကယ်၍ header မပါပါက စနစ်တကျ ပတ်ပေးခြင်း
+                formatted_private_key = f"-----BEGIN PRIVATE KEY-----\n{raw_key}\n-----END PRIVATE KEY-----\n"
+            else:
+                formatted_private_key = raw_key.replace("\\n", "\n")
+                
             creds_dict = {
                 "type": st.secrets["gcp_type"],
                 "project_id": st.secrets["gcp_project_id"],
