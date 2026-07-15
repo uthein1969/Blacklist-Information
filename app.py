@@ -824,8 +824,17 @@ def log_user_activity(username, action, status, session_id=None):
     import streamlit as st
     import time
     
-    current_enable_supabase = globals().get('ENABLE_SUPABASE', True)
-    current_enable_sheet = globals().get('ENABLE_GOOGLE_SHEET', True)
+    # 🎯 Streamlit Framework အောက်တွင် အမှားကင်းစေရန် အခြေအနေစစ်ဆေးမှုကို တိုက်ရိုက်ယူခြင်း
+    # global variable ရှာမတွေ့ပါက ပုံမှန်အားဖြင့် True ဟု ယူဆခိုင်းထားပါသည်
+    try:
+        current_enable_supabase = globals().get('ENABLE_SUPABASE', True)
+    except:
+        current_enable_supabase = True
+
+    try:
+        current_enable_sheet = globals().get('ENABLE_GOOGLE_SHEET', True)
+    except:
+        current_enable_sheet = True
     
     tz = pytz.timezone('Asia/Yangon')
     now_mm = datetime.now(tz).isoformat()
@@ -855,9 +864,9 @@ def log_user_activity(username, action, status, session_id=None):
                     "action_date_time": now_mm
                 }).execute()
         except Exception as e: 
-            print(f"Supabase Log Error under Streamlit: {e}")
+            print(f"Supabase Log Error: {e}")
 
-    # B. 🎯 Google Sheet သို့ ဒေတာသွင်းခြင်း (ခိုင်မာမြန်ဆန်သော စနစ်သစ်)
+    # B. 🎯 Google Sheet သို့ ဒေတာသွင်းခြင်း (မဖြစ်မနေ မောင်းနှင်မည့် စနစ်)
     if current_enable_sheet:
         for attempt in range(3):
             try:
@@ -867,27 +876,23 @@ def log_user_activity(username, action, status, session_id=None):
                     if spreadsheet:
                         log_worksheet = spreadsheet.worksheet("user_logs")
                         
-                        # 🎯 API overload ဖြစ်စေသော col_values() ကို လုံးဝမသုံးတော့ဘဲ
-                        # Epoch timestamp အား စက္ကန့်ပိုင်းဖြင့် Unique ID အဖြစ် တိုက်ရိုက်ပြောင်းသုံးခြင်း
                         unique_id = str(int(time.time()))
-                        
                         log_row_value = [
-                            unique_id,             # Column A: id (Unique ID)
-                            str(username),         # Column B: username
-                            str(now_mm),           # Column C: action_date_time
-                            str(session_id),       # Column D: session_id
-                            str(action),           # Column E: action
-                            str(status)            # Column F: status
+                            unique_id, 
+                            str(username), 
+                            str(now_mm), 
+                            str(session_id), 
+                            str(action), 
+                            str(status)
                         ]
                         
-                        # 🎯 ဇယား၏ အောက်ခြေဆုံးတွင် တိုက်ရိုက် အမြန်ဆုံး ဖြည့်စွက်ခြင်း
                         log_worksheet.append_row(log_row_value, value_input_option='USER_ENTERED')
-                        print(f"🚀 Google Sheet Log forced successfully on attempt {attempt + 1}!")
+                        print(f"🚀 [CLOUD SUCCESS] Sync to Google Sheet Success on attempt {attempt + 1}!")
                         break
+                    else:
+                        print("⚠️ Spreadsheet configuration returned None")
             except Exception as sheet_log_err:
                 print(f"⚠️ Sheet Append Attempt {attempt + 1} Failed: {str(sheet_log_err)}")
-                if attempt == 2:
-                    st.toast(f"🚨 Google Sheet Link Broken: {str(sheet_log_err)}", icon="❌")
                 time.sleep(1)
 
 def auto_cleanup_expired_logs():
