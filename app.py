@@ -48,39 +48,50 @@ def get_google_sheet():
         
         json_key_file = "gen-lang-client-0490646413-a25b1a1118b6.json"
         
-        # 🎯 GitHub ပေါ်သို့ တင်လိုက်သော JSON ဖိုင်ရှိမရှိ စစ်ဆေးခြင်း
+        # 1️⃣ [LOCAL သို့မဟုတ် GITHUB JSON EMBED MODE]
         if os.path.exists(json_key_file):
-            creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
-            client = gspread.authorize(creds)
-            return client.open("Blacklist_Information")
-            
-        # fallback system (Secrets ထဲမှ Flat စနစ်ဖြင့်လည်း အရန်စစ်ဆေးထားပေးပါသည်)
-        else:
-            if "gcp_type" in st.secrets:
-                # TOML Parser ပြဿနာကြောင့် line breaks များကို အတင်းသန့်စင်ပစ်ခြင်း
-                clean_key = st.secrets["gcp_private_key"].replace("\\n", "\n").strip()
-                # အကယ်၍ line character သာမန်အတိုင်းရှိနေပါက အနားသတ်များကို ရှင်းထုတ်ခြင်း
-                if "-----BEGIN PRIVATE KEY-----" in clean_key:
-                    pass
-                
-                creds_dict = {
-                    "type": st.secrets["gcp_type"],
-                    "project_id": st.secrets["gcp_project_id"],
-                    "private_key_id": st.secrets["gcp_private_key_id"],
-                    "private_key": clean_key,
-                    "client_email": st.secrets["gcp_client_email"],
-                    "client_id": st.secrets["gcp_client_id"],
-                    "auth_uri": st.secrets["gcp_auth_uri"],
-                    "token_uri": st.secrets["gcp_token_uri"],
-                    "auth_provider_x509_cert_url": st.secrets["gcp_auth_provider_x509_cert_url"],
-                    "client_x509_cert_url": st.secrets["gcp_client_x509_cert_url"],
-                    "universe_domain": st.secrets.get("gcp_universe_domain", "googleapis.com")
-                }
-                creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            try:
+                creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
                 client = gspread.authorize(creds)
                 return client.open("Blacklist_Information")
+            except Exception as file_err:
+                # ဖိုင်ဖတ်ရာတွင် cryptographic error တစ်ခုခုတက်ပါက အောက်ခြေ Secrets သို့ Fallback ဆင်းရန်
+                print(f"File mode failed: {file_err}")
+            
+        # 2️⃣ [STREAMLIT SECRETS CLOUD MODE]
+        if "gcp_type" in st.secrets:
+            raw_key = st.secrets["gcp_private_key"]
+            
+            # 🎯 [THE CRITICAL FIX] ဘယ်လိုပုံစံနဲ့ သိမ်းသိမ်း ညှပ်ပါလာမယ့် space အပိုများနှင့် 
+            # line-break အမှားအားလုံးကို cryptographic standard အတိုင်း စင်ကြယ်အောင် ရှင်းထုတ်ခြင်း
+            # header နှင့် footer ကြားမှ ကီးစာသားများကို စနစ်တကျ ပြန်လည် သန့်စင်ပါတယ်
+            if "-----BEGIN PRIVATE KEY-----" in raw_key:
+                # literal \n များကို တကယ့် newline ပြောင်းပါတယ်
+                fixed_key = raw_key.replace("\\n", "\n")
+                # လိုင်းတစ်ခုချင်းစီကြားထဲက မလိုအပ်တဲ့ space အပိုတွေကို လုံးဝဖယ်ရှားပစ်ပါတယ်
+                lines = [line.strip() for line in fixed_key.split("\n") if line.strip()]
+                fixed_key = "\n".join(lines)
             else:
-                return None
+                fixed_key = raw_key.strip()
+            
+            creds_dict = {
+                "type": st.secrets["gcp_type"],
+                "project_id": st.secrets["gcp_project_id"],
+                "private_key_id": st.secrets["gcp_private_key_id"],
+                "private_key": fixed_key, # 🎯 သန့်ရှင်းပြီးသား ကီးကို သုံးစွဲခြင်း
+                "client_email": st.secrets["gcp_client_email"],
+                "client_id": st.secrets["gcp_client_id"],
+                "auth_uri": st.secrets["gcp_auth_uri"],
+                "token_uri": st.secrets["gcp_token_uri"],
+                "auth_provider_x509_cert_url": st.secrets["gcp_auth_provider_x509_cert_url"],
+                "client_x509_cert_url": st.secrets["gcp_client_x509_cert_url"],
+                "universe_domain": st.secrets.get("gcp_universe_domain", "googleapis.com")
+            }
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            client = gspread.authorize(creds)
+            return client.open("Blacklist_Information")
+        else:
+            return None
         
     except Exception as e:
         st.error(f"❌ Google Sheet Connection Error: {str(e)}")
