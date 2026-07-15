@@ -55,21 +55,21 @@ def get_google_sheet():
                 client = gspread.authorize(creds)
                 return client.open("Blacklist_Information")
             except Exception as file_err:
-                print(f"File mode failed: {file_err}")
+                print(f"File mode failed, rolling to secrets: {file_err}")
             
-        # 2️⃣ CLOUD MODE (Pure ASCII Re-construction Method)
+        # 2️⃣ CLOUD MODE (Escaped String Dynamic Parsing Method)
         if "gcp_type" in st.secrets:
-            # 🎯 Secrets ထဲက သန့်စင်ပြီးသား single-line စာသားကို ယူပါတယ်
-            raw_key_content = st.secrets["gcp_private_key_clean"].strip()
+            # Secrets ထဲက Double Backslash ပါတဲ့ တစ်ဆက်တည်းကီးကို ယူပါတယ်
+            raw_key = st.secrets["gcp_private_key"]
             
-            # Google Authentication Engine က တောင်းဆိုတဲ့ RSA Format အတိုင်း ကုဒ်ထဲကနေ အလိုအလျောက် စနစ်တကျ ပြန်ဖွဲ့စည်းပေးပါတယ်
-            formatted_private_key = f"-----BEGIN PRIVATE KEY-----\n{raw_key_content}\n-----END PRIVATE KEY-----\n"
+            # 🎯 [THE FINAL ESCAPE FIX] \\n များကို တကယ့် Cryptographic Newline (\n) အဖြစ် အတိအကျ ပြောင်းလဲခြင်း
+            fixed_key = raw_key.replace("\\n", "\n").strip()
             
             creds_dict = {
                 "type": st.secrets["gcp_type"],
                 "project_id": st.secrets["gcp_project_id"],
                 "private_key_id": st.secrets["gcp_private_key_id"],
-                "private_key": formatted_private_key,
+                "private_key": fixed_key,
                 "client_email": st.secrets["gcp_client_email"],
                 "client_id": st.secrets["gcp_client_id"],
                 "auth_uri": st.secrets["gcp_auth_uri"],
