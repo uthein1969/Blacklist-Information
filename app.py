@@ -36,7 +36,6 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
-    import json  # 🎯 JSON parsing အတွက် ထည့်သွင်းခြင်း
     from google.oauth2.service_account import Credentials
 
     try:
@@ -49,22 +48,29 @@ def get_google_sheet():
         
         json_key_file = "gen-lang-client-0490646413-a25b1a1118b6.json"
         
-        # 1️⃣ LOCAL MODE
+        # 1️⃣ LOCAL MODE (စက်ထဲတွင် JSON ဖိုင်ရှိလျှင် ၎င်းအတိုင်းပုံမှန်မောင်းနှင်သည်)
         if os.path.exists(json_key_file):
             creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
             client = gspread.authorize(creds)
             return client.open("Blacklist_Information")
             
-        # 2️⃣ CLOUD MODE (JSON String အား Direct Parse လုပ်သည့် စနစ်သစ်)
+        # 2️⃣ CLOUD MODE (Flat Secrets အား ဒိုင်နမစ်စနစ်ဖြင့် စုစည်းတည်ဆောက်ခြင်း)
         else:
-            if "gcp_service_account_json" in st.secrets:
-                # String အဖြစ် ဝင်လာသော JSON ကို သန့်ရှင်းစွာ အလိုအလျောက် Object ပြန်ပြောင်းခြင်း
-                json_string = st.secrets["gcp_service_account_json"]
-                creds_dict = json.loads(json_string)
-                
-                # Internal private key escape characters ကို auto-verify လုပ်ပါတယ်
-                if "private_key" in creds_dict:
-                    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip()
+            # လိုအပ်သော flat keys များ အားလုံး Streamlit Secrets ထဲတွင် ရှိမရှိ အသေအချာစစ်ဆေးခြင်း
+            if "gcp_type" in st.secrets:
+                creds_dict = {
+                    "type": st.secrets["gcp_type"],
+                    "project_id": st.secrets["gcp_project_id"],
+                    "private_key_id": st.secrets["gcp_private_key_id"],
+                    "private_key": st.secrets["gcp_private_key"].strip(),
+                    "client_email": st.secrets["gcp_client_email"],
+                    "client_id": st.secrets["gcp_client_id"],
+                    "auth_uri": st.secrets["gcp_auth_uri"],
+                    "token_uri": st.secrets["gcp_token_uri"],
+                    "auth_provider_x509_cert_url": st.secrets["gcp_auth_provider_x509_cert_url"],
+                    "client_x509_cert_url": st.secrets["gcp_client_x509_cert_url"],
+                    "universe_domain": st.secrets.get("gcp_universe_domain", "googleapis.com")
+                }
                 
                 creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
                 client = gspread.authorize(creds)
