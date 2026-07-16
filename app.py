@@ -55,6 +55,8 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
+    import base64
+    import json
     from google.oauth2.service_account import Credentials
 
     try:
@@ -65,15 +67,25 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # Local တွင် Run လျှင် ဖိုင်ရှိပါက ဖိုင်ဖတ်မည်
+        # ၁။ Local/Codespace တွင် Run လျှင် ဖိုင်ရှိက တိုက်ရိုက်ဖတ်မည်
         if os.path.exists("backup/google_key.json"):
             creds = Credentials.from_service_account_file("backup/google_key.json", scopes=scopes)
-        # Cloud ပေါ်တွင် Run လျှင် st.secrets.gserviceaccount ထဲမှ တိုက်ရိုက်ဆွဲဖတ်မည်
-        elif "gserviceaccount" in st.secrets:
-            creds_dict = dict(st.secrets["gserviceaccount"])
+            
+        # ၂။ Streamlit Cloud ပေါ်တွင် Run လျှင် Secrets ထဲက base64 key ကို ဘေးကင်းစွာ ဖတ်မည်
+        elif "gserviceaccount" in st.secrets and "encoded_key" in st.secrets["gserviceaccount"]:
+            encoded_key = st.secrets["gserviceaccount"]["encoded_key"]
+            
+            # base64 string အား မူရင်း json dict အဖြစ် ပြန်ပြောင်းခြင်း
+            decoded_bytes = base64.b64decode(encoded_key)
+            creds_dict = json.loads(decoded_bytes.decode("utf-8"))
+            
+            # key ထဲက newline mapping ပြဿနာများကို ရှင်းလင်းခြင်း
+            if "private_key" in creds_dict:
+                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+                
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         else:
-            st.error("❌ Credentials မတွေ့ပါဗျာ။")
+            st.error("❌ Google Credentials စနစ်အား ရှာမတွေ့ပါဗျာ။")
             return None
             
         client = gspread.authorize(creds)
