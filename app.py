@@ -55,8 +55,6 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
-    import base64
-    import json
     from google.oauth2.service_account import Credentials
 
     try:
@@ -67,31 +65,19 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # ၁။ Local/Codespace တွင် Run လျှင် ဖိုင်ရှိက အရင်ဖတ်မည်
-        if os.path.exists("backup/google_key.json"):
-            creds = Credentials.from_service_account_file("backup/google_key.json", scopes=scopes)
-            
-        # ၂။ Streamlit Cloud ပေါ်တွင် Run လျှင် Secrets ထဲက Base64 string စစ်စစ်ကို ဖြန့်ဖတ်မည်
-        elif "gserviceaccount" in st.secrets and "encoded_key" in st.secrets["gserviceaccount"]:
-            encoded_key = st.secrets["gserviceaccount"]["encoded_key"]
-            
-            # မူရင်း byte အတိုင်း တိကျစွာ decode လုပ်ခြင်း
-            decoded_bytes = base64.b64decode(encoded_key.strip())
-            creds_dict = json.loads(decoded_bytes.decode("utf-8"))
-            
-            # Newline logic ကို သေချာစေရန်
-            if "private_key" in creds_dict:
-                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-                
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        # 🚀 ပရောဂျက် folder ထဲက backup/google_key.json ဖိုင်ကို တိုက်ရိုက်ဆွဲဖတ်ခြင်း
+        key_filename = "backup/google_key.json"
+        
+        if os.path.exists(key_filename):
+            creds = Credentials.from_service_account_file(key_filename, scopes=scopes)
+            client = gspread.authorize(creds)
+            return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit")
         else:
-            st.error("❌ Google Credentials Variable ကို ရှာမတွေ့ပါဗျာ။")
+            st.error(f"❌ '{key_filename}' ဖိုင်ကို ရှာမတွေ့ပါဗျာ။")
             return None
-            
-        client = gspread.authorize(creds)
-        return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit")
+        
     except Exception as e:
-        st.error(f"❌ Connection Error: {str(e)}")
+        st.error(f"❌ Google Sheet Connection Error: {str(e)}")
         return None
 
 import requests
