@@ -4,6 +4,25 @@ import time
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+import streamlit as st
+import datetime
+import pytz
+
+# 🎯 ကီးများကို ဖိုင်ထဲကမဖတ်ဘဲ ကုဒ်ထဲမှာ တိုက်ရိုက် သတ်မှတ်ခြင်း
+GOOGLE_SHEET_CREDS = {
+    "type": "service_account",
+    "project_id": "gen-lang-client-0490646413",
+    "private_key_id": "c6cef5e04369eadf28938c7fdbf2e79c4afb06cc",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDMhOBlnkjIdZCm\nQ1dd0QA61CoTRVCYzmO2638a27kLmw7tSXBlA45m4Ry9xZi+mXpslMZ9i4LRW7fr\nA0I/uOYIrNCI8JEhXl9OMnRODaHnSYoLFlbX/t3ZA4x01PPDXlyj4BldqRwMMA3h\nkW2n4ZSuIHj5IGlnJq8abfPBGs9euGPpjgwcUVVhgW4pmwM5RFKX44OhGaZOPTGf\nzKswKS802CIuqfdF/a0WENf/a785lQkFq4fHr9LiCi45Ill0cNN2lQbRHRSkbXWy\nVqnTm0VKCiht3AVjx8+ZrD+FjQzqRuAKZn/nsAW+nMHQ76qui0BsSqXqnNFy0vNb\nqaMdJ2wvAgMBAAECggEAP+bgqj+bpC6/pINz/9c2yCrUfrLwrN4H3/aS/1RZ7Btl\nvZRtrtI+ozyBG3Zq9FrGGrkdj8qQdFPBEogxIfHmxh0hBziLUC7JfohbOKwfw0GC\nBVbUiaaTsKPgNfz3sTqBnZ5+rnoRTmmRXMJwzby5FPMGeWi8JkO7AHoMaHC1DHXm\n0/n1xX3GimnZH0P4CaAflbKkD4gNNWCq1JK9Aw33b38FpFMHqaUEuCSy5BLt7zmi\nvgnApSmmkstTpcd1Xrqd2fkxurkYKdoC63Q33DP7zLREI3m7I10fidJRoDvqZv8P\nXRfnqPPBhs8BgvcbxRy7DPzmwUFsbBy3/bQqSyRpqQKBgQD+EIbpeGKqaC2CltDZ\nGrkY8adPomfmDeaYUS679VnEcDREPcWKM4fhBiYZ2I24+XI3fnm40YxkqngMi/sU\ngCEHzFnOCwiLOLq1D8moQZC3GR+LWIaUDk86T7NTCkE72aINK7ZRbTMzyP9dtTga\nVMxAt3+vwfJ7xf9Htm6riOJPAwKBgQDOE7oDwVRrfL4BCaGHoCX4YSjkCyUPAesO\nNW5exg5OwhvoZpN9R08zDNx9gfhqacwn+3r8UbXq9Gy7qP0sf5hC7NDFu6GCRTPz\nAvNhNEeKEcLVseIhciwF7l+LsrKPrnlDSNAaEJRRTvvWoBqLT0A0B6fSdtMYPAIw\nQnOQHDTAZQKBgQC0U56uT5gYQ2Ep80nBDsqZ/cs3JpqAGxW0vspg9kAEwW8XkJCJ\CxJCkU6xwZa117dN1CMpHvJ68NPMc/5+CoNnOY/0QriJuHYs1UvYdND2ZIqTKP48\nT/vD85XgNsMea9Ytav04xj01YFCAfoOXjOB8fsHOSeaGG36Zs87RSZL3aQKBgQDN\nTOXCG/aIZuu7iOa9gRSSz+i210uCGf0cWKquDE3wtHytGJPS+Rmz2BpJhxP+n4ve\nQTES8ixz+DHi+sXOcQc1lUuf0f9jEqJgdQ4WRskGig86aU7I1z94YTQarlopvj3c\nhEudy+qW3kMSXMpVAw0JSJ8uk2ZV/GKJxYnvhcof6QKBgQCxOoLgadDVQzISTF4y\njewfeqkqaoPR0kQFEX4IahYKhkuKPtC65tsl93Xe43QhVMghwErv50ujpOi4Vwdo\nRmzsDKqFb2AoSM9RJl59MoBQ8JyHN70V+lreeI0OPPoHxE6TxWy26oc7zgyYJrb5\netsdjuhxEdmW+NgevYOrd4+Ptg==\n-----END PRIVATE KEY-----\n",
+    "client_email": "sys-sheet@gen-lang-client-0490646413.iam.gserviceaccount.com",
+    "client_id": "102931457188888534470",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/sys-sheet%40gen-lang-client-0490646413.iam.gserviceaccount.com",
+    "universe_domain": "googleapis.com"
+}
+GOOGLE_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit"
 
 # --- Supabase Configuration ---
 SUPABASE_URL = "https://batsowuihgwhxbboucpy.supabase.co"
@@ -47,23 +66,23 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 1️⃣ LOCAL MODE (VS Code တွင် ဒေတာပုံမှန်ဝင်စေရန် ဖိုင်တိုက်ရိုက်ဖတ်စနစ်)
-        json_key_file = "gen-lang-client-0490646413-832d079930fb.json"
+        key_filename = "backup/google_key.json"
         
-        if os.path.exists(json_key_file):
-            creds = Credentials.from_service_account_file(json_key_file, scopes=scopes)
-            client = gspread.authorize(creds)
-            return client.open("Blacklist_Information")
-            
-        # 2️⃣ STREAMLIT CLOUD MODE (Secrets သို့ ရောက်ပါက JSON String ဖြင့် Error ကင်းစင်စွာ ဖတ်သည့်စနစ်)
-        elif "gcp_json_string" in st.secrets:
-            json_text = st.secrets["gcp_json_string"]
-            creds_dict = json.loads(json_text)
+        # ၁။ စက်ထဲတွင် Run လျှင် ဖိုင်ရှိပါက ဖိုင်ကို တိုက်ရိုက်ဖတ်မည်
+        if os.path.exists(key_filename):
+            creds = Credentials.from_service_account_file(key_filename, scopes=scopes)
+        
+        # ၂။ Streamlit Cloud ပေါ်တွင် Run လျှင် Secrets ထဲမှ ဖတ်မည်
+        elif "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+            creds_dict = dict(st.secrets["connections"]["gsheets"])
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-            client = gspread.authorize(creds)
-            return client.open("Blacklist_Information")
+            
         else:
+            st.error("❌ Google Credentials JSON file သို့မဟုတ် Streamlit Secrets ကို ရှာမတွေ့ပါဗျာ။")
             return None
+            
+        client = gspread.authorize(creds)
+        return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit")
         
     except Exception as e:
         st.error(f"❌ Google Sheet Connection Error: {str(e)}")
@@ -106,72 +125,73 @@ def is_supabase_alive():
 # 🛡️ GOOGLE SHEETS REAL-TIME SYNC SYSTEM (COLUMN CORRECTED & LOGS SYNCED)
 # ========================================================
 
-# 🌟 Data Add New ရောက်လာလျှင် Google Sheet ၌ အောက်ဆုံးတွင် တန်းထည့်မည့် စနစ် (Column အစီအစဉ်အမှန်)
+# 🌟 ၁။ Data Add New ရောက်လာလျှင် Google Sheet ၌ အောက်ဆုံးတွင် တန်းထည့်မည့် စနစ်
 def auto_sync_append_record(data_dict):
-    spreadsheet = get_google_sheet()
-    if spreadsheet:
-        try:
-            worksheet = spreadsheet.worksheet("blacklist_records")
-            
-            # 🎯 လူကြီးမင်း၏ Google Sheet Column (A မှ I) အစီအစဉ်အတိုင်း တိကျစွာ ညှိပေးထားပါသည်
-            import pytz; from datetime import datetime
-            tz = pytz.timezone('Asia/Yangon')
-            now_mm = datetime.now(tz).isoformat()
-            
-            row_value = [
-                str(data_dict.get("id") or data_dict.get("blacklist_id") or ""), # Column A: id
-                str(data_dict.get("full_name", "")),                            # Column B: full_name
-                str(data_dict.get("nrc_number", "")),                          # Column C: nrc_number
-                str(data_dict.get("reason", "")),                              # Column D: reason
-                str(data_dict.get("blacklisted_by", "")),                      # Column E: blacklisted_by
-                str(now_mm),                                                   # Column F: created_at
-                str(data_dict.get("Remark1") or data_dict.get("company_name") or data_dict.get("remark1") or ""), # Column G: Remark1
-                str(data_dict.get("Remark2") or data_dict.get("address") or data_dict.get("remark2") or ""),      # Column H: Remark2
-                str(data_dict.get("image_url") or "")                           # Column I: image_url
-            ]
-            worksheet.append_row(row_value)
-            print("✨ Real-time ADD Sync to Google Sheet Success!")
-        except Exception as e:
-            print(f"⚠️ Google Sheet Add Failed: {str(e)}")
+    try:
+        # ကုဒ်ထဲမှ တိုက်ရိုက် ကီးများကို သုံး၍ ချိတ်ဆက်ခြင်း
+        gc = gspread.service_account_from_dict(GOOGLE_SHEET_CREDS)
+        sh = gc.open_by_url(GOOGLE_SPREADSHEET_URL)
+        worksheet = sh.worksheet("blacklist_records")
+        
+        tz = pytz.timezone('Asia/Yangon')
+        now_mm = datetime.now(tz).isoformat()
+        
+        row_value = [
+            str(data_dict.get("id") or data_dict.get("blacklist_id") or ""), 
+            str(data_dict.get("full_name", "")),                            
+            str(data_dict.get("nrc_number", "")),                           
+            str(data_dict.get("reason", "")),                               
+            str(data_dict.get("blacklisted_by", "")),                       
+            str(now_mm),                                                    
+            str(data_dict.get("Remark1") or data_dict.get("company_name") or data_dict.get("remark1") or ""), 
+            str(data_dict.get("Remark2") or data_dict.get("address") or data_dict.get("remark2") or ""),      
+            str(data_dict.get("image_url") or "")                           
+        ]
+        
+        worksheet.append_row(row_value, value_input_option="RAW")
+        print("✨ Real-time ADD Sync to Google Sheet Success!")
+    except Exception as e:
+        print(f"⚠️ Google Sheet Add Failed: {str(e)}")
 
-# 🌟 ၂။ Data Update လိုက်လျှင် Google Sheet ထဲရှိ သက်ဆိုင်ရာ Row ကို ကွက်တိလိုက်ပြင်ပေးမည့် စနစ် (Column အစီအစဉ်အမှန်)
+# 🌟 ၂။ Data Update လိုက်လျှင် Google Sheet ထဲရှိ သက်ဆိုင်ရာ Row ကို လိုက်ပြင်ပေးမည့် စနစ်
 def auto_sync_update_record(record_id, updated_data_dict):
-    if not ENABLE_GOOGLE_SHEET:
-        print("⏸️ Google Sheet Update Sync is Currently DISABLED.")
-        return
+    try:
+        gc = gspread.service_account_from_dict(GOOGLE_SHEET_CREDS)
+        sh = gc.open_by_url(GOOGLE_SPREADSHEET_URL)
+        worksheet = sh.worksheet("blacklist_records")
+        
+        id_list = worksheet.col_values(1) 
+        str_id = str(record_id)
+        
+        if "id" not in updated_data_dict:
+            updated_data_dict["id"] = str_id
 
-    spreadsheet = get_google_sheet()
-    if spreadsheet:
-        try:
-            worksheet = spreadsheet.worksheet("blacklist_records")
-            id_list = worksheet.col_values(1) # Column A (ID စစ်ဆေးခြင်း)
-            str_id = str(record_id)
+        if str_id in id_list:
+            row_index = id_list.index(str_id) + 1
             
-            if "id" not in updated_data_dict:
-                updated_data_dict["id"] = str_id
-
-            if str_id in id_list:
-                row_index = id_list.index(str_id) + 1
+            try:
+                original_created_at = worksheet.cell(row_index, 6).value or ""
+            except:
+                original_created_at = ""
                 
-                # 🎯 Update လုပ်လျှင်လည်း Column အစီအစဉ် (A မှ I) အတိုင်း တိကျစွာ ပြင်ဆင်ပေးပါသည်
-                row_value = [
-                    str_id,                                                        # Column A: id
-                    str(updated_data_dict.get("full_name", "")),                   # Column B: full_name
-                    str(updated_data_dict.get("nrc_number", "")),                 # Column C: nrc_number
-                    str(updated_data_dict.get("reason", "")),                      # Column D: reason
-                    str(updated_data_dict.get("blacklisted_by") or st.session_state.get("user_info", {}).get("username", "")), # Column E: blacklisted_by
-                    worksheet.cell(row_index, 6).value or "",                      # Column F: created_at (မူရင်းအချိန်အတိုင်း ထားရှိခြင်း)
-                    str(updated_data_dict.get("Remark1") or updated_data_dict.get("company_name") or updated_data_dict.get("remark1") or ""), # Column G: Remark1
-                    str(updated_data_dict.get("Remark2") or updated_data_dict.get("address") or updated_data_dict.get("remark2") or ""),      # Column H: Remark2
-                    str(updated_data_dict.get("image_url") or "")                  # Column I: image_url
-                ]
-                # A မှ I အထိ Range သတ်မှတ်၍ အကုန်လုံး တစ်ပြိုင်နက် Update လုပ်ခြင်း
-                worksheet.update(range_name=f"A{row_index}:I{row_index}", values=[row_value])
-                print(f"✨ Real-time UPDATE Sync to Google Sheet Row {row_index} Success!")
-            else:
-                auto_sync_append_record(updated_data_dict)
-        except Exception as e:
-            print(f"⚠️ Google Sheet Update Failed: {str(e)}")
+            row_value = [
+                str_id,                                                         
+                str(updated_data_dict.get("full_name", "")),                   
+                str(updated_data_dict.get("nrc_number", "")),                  
+                str(updated_data_dict.get("reason", "")),                       
+                str(updated_data_dict.get("blacklisted_by") or st.session_state.get("user_info", {}).get("username", "")), 
+                str(original_created_at),                                       
+                str(updated_data_dict.get("Remark1") or updated_data_dict.get("company_name") or updated_data_dict.get("remark1") or ""), 
+                str(updated_data_dict.get("Remark2") or updated_data_dict.get("address") or updated_data_dict.get("remark2") or ""),      
+                str(updated_data_dict.get("image_url") or "")                   
+            ]
+            
+            worksheet.update(range_name=f"A{row_index}:I{row_index}", values=[row_value], value_input_option="RAW")
+            print(f"✨ Real-time UPDATE Sync to Google Sheet Row {row_index} Success!")
+        else:
+            auto_sync_append_record(updated_data_dict)
+    except Exception as e:
+        print(f"⚠️ Google Sheet Update Failed: {str(e)}")
 
 # 🌟 ၃။ Dialog Function (Global Scope တွင် ထားရှိပါသည်)
 @st.dialog("📸 NRC Photo View", width="small")

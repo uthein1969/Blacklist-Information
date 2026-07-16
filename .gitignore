@@ -219,3 +219,4 @@ __marimo__/
 # Google Cloud Service Account Key (Security Prevention)
 gen-lang-client-0490646413-a25b1a1118b6*.json
 .streamlit/
+backup/google_key.json
