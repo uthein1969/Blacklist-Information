@@ -55,7 +55,6 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
-    import json
     from google.oauth2.service_account import Credentials
 
     try:
@@ -68,30 +67,13 @@ def get_google_sheet():
         
         key_filename = "backup/google_key.json"
         
-        # 🚀 ၁။ Codespace ထဲတွင် Run လျှင် ဖိုင်ရှိပါက ဖိုင်ကို တိုက်ရိုက်ဖတ်မည်
+        # ၁။ Codespace ထဲတွင် Run လျှင် ဖိုင်ကို တိုက်ရိုက်ဖတ်မည်
         if os.path.exists(key_filename):
             creds = Credentials.from_service_account_file(key_filename, scopes=scopes)
         
-        # 🚀 ၂။ Streamlit Cloud ပေါ်တွင် Run လျှင် Dashboard Secrets ထဲမှ ဖတ်မည်
+        # ၂။ Streamlit Cloud ပေါ်တွင် Run လျှင် Secrets ထဲမှ တိုက်ရိုက်ဖတ်မည်
         elif "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
             creds_dict = dict(st.secrets["connections"]["gsheets"])
-            
-            # 🔥 Cloud ပေါ်က ကီးပြဿနာကို Google မူရင်း Decoder (JSON System) ဖြင့် အမြစ်ဖြတ်ခြင်း
-            if "private_key" in creds_dict:
-                # ကီးထဲက လက်ရှိပါနေတဲ့ newline formatting တွေကို အမှန်ကန်ဆုံး ပုံစံဖြစ်အောင် အရင်ရှင်းထုတ်သည်
-                raw_key = creds_dict["private_key"].replace("\\n", "\n")
-                
-                # အကယ်၍ အကြောင်းအမျိုးမျိုးကြောင့် စာကြောင်းမဆင်းဘဲ ပူးနေပါက စနစ်တကျ ပြန်ခွဲသည်
-                if "\n" not in raw_key and "-----BEGIN PRIVATE KEY-----" in raw_key:
-                    raw_key = raw_key.replace("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----\n")
-                    raw_key = raw_key.replace("-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
-                
-                # JSON Engine ကိုသုံးပြီး ကီးထဲက မလိုအပ်တဲ့ characters တွေကို သန့်စင်စေခြင်း
-                try:
-                    creds_dict["private_key"] = json.loads(f'"{raw_key}"')
-                except:
-                    creds_dict["private_key"] = raw_key
-                
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             
         else:
