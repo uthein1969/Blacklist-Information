@@ -55,6 +55,8 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
+    import base64
+    import json
     from google.oauth2.service_account import Credentials
 
     try:
@@ -67,20 +69,33 @@ def get_google_sheet():
         
         key_filename = "backup/google_key.json"
         
-        # ၁။ Codespace ထဲတွင် Run လျှင် ဖိုင်ကို တိုက်ရိုက်ဖတ်မည်
+        # 🚀 ၁။ Local/Codespace ထဲတွင် Run လျှင် ဖိုင်ရှိပါက ဖိုင်ကို ဖတ်မည်
         if os.path.exists(key_filename):
             creds = Credentials.from_service_account_file(key_filename, scopes=scopes)
         
-        # ၂။ Streamlit Cloud ပေါ်တွင် Run လျှင် Secrets ထဲမှ တိုက်ရိုက်ဖတ်မည်
+        # 🚀 ၂။ Streamlit Cloud ပေါ်တွင် Run လျှင် Base64 ကို Decode လုပ်ပြီး အမှားကင်းစွာ ဖတ်မည်
         elif "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
             creds_dict = dict(st.secrets["connections"]["gsheets"])
-            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             
+            if "encoded_key" in creds_dict:
+                # Base64 string ရှည်ကြီးကို မူရင်း JSON dictionary ပုံစံသို့ ကွက်တိ ပြန်ပြောင်းခြင်း
+                decoded_bytes = base64.b64decode(creds_dict["encoded_key"])
+                decoded_json = json.loads(decoded_bytes.decode("utf-8"))
+                
+                # private_key ထဲက newline formatting များကို နောက်ဆုံးအဆင့် ညှိနှိုင်းခြင်း
+                if "private_key" in decoded_json:
+                    decoded_json["private_key"] = decoded_json["private_key"].replace("\\n", "\n")
+                
+                creds = Credentials.from_service_account_info(decoded_json, scopes=scopes)
+            else:
+                st.error("❌ 'encoded_key' not found in Streamlit Secrets.")
+                return None
         else:
             st.error("❌ Google Credentials JSON file သို့မဟုတ် Streamlit Secrets ကို ရှာမတွေ့ပါဗျာ။")
             return None
             
         client = gspread.authorize(creds)
+        # အစ်ကို့ရဲ့ Google Sheet URL အမှန်
         return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit")
         
     except Exception as e:
