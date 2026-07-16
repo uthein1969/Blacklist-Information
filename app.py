@@ -67,25 +67,25 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # ၁။ Local/Codespace တွင် Run လျှင် ဖိုင်ရှိက တိုက်ရိုက်ဖတ်မည်
+        # ၁။ Local/Codespace တွင် Run လျှင် ဖိုင်ရှိက အရင်ဖတ်မည်
         if os.path.exists("backup/google_key.json"):
             creds = Credentials.from_service_account_file("backup/google_key.json", scopes=scopes)
             
-        # ၂။ Streamlit Cloud ပေါ်တွင် Run လျှင် Secrets ထဲက base64 key ကို ဘေးကင်းစွာ ဖတ်မည်
+        # ၂။ Streamlit Cloud ပေါ်တွင် Run လျှင် Secrets ထဲက Base64 string စစ်စစ်ကို ဖြန့်ဖတ်မည်
         elif "gserviceaccount" in st.secrets and "encoded_key" in st.secrets["gserviceaccount"]:
             encoded_key = st.secrets["gserviceaccount"]["encoded_key"]
             
-            # base64 string အား မူရင်း json dict အဖြစ် ပြန်ပြောင်းခြင်း
-            decoded_bytes = base64.b64decode(encoded_key)
+            # မူရင်း byte အတိုင်း တိကျစွာ decode လုပ်ခြင်း
+            decoded_bytes = base64.b64decode(encoded_key.strip())
             creds_dict = json.loads(decoded_bytes.decode("utf-8"))
             
-            # key ထဲက newline mapping ပြဿနာများကို ရှင်းလင်းခြင်း
+            # Newline logic ကို သေချာစေရန်
             if "private_key" in creds_dict:
                 creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
                 
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         else:
-            st.error("❌ Google Credentials စနစ်အား ရှာမတွေ့ပါဗျာ။")
+            st.error("❌ Google Credentials Variable ကို ရှာမတွေ့ပါဗျာ။")
             return None
             
         client = gspread.authorize(creds)
