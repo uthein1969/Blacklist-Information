@@ -65,19 +65,21 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 🚀 ပရောဂျက်ထဲက backup/google_key.json ကို တိုက်ရိုက်ဆွဲဖတ်ခြင်း
-        key_filename = "backup/google_key.json"
-        
-        if os.path.exists(key_filename):
-            creds = Credentials.from_service_account_file(key_filename, scopes=scopes)
-            client = gspread.authorize(creds)
-            return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit")
+        # Local တွင် Run လျှင် ဖိုင်ရှိပါက ဖိုင်ဖတ်မည်
+        if os.path.exists("backup/google_key.json"):
+            creds = Credentials.from_service_account_file("backup/google_key.json", scopes=scopes)
+        # Cloud ပေါ်တွင် Run လျှင် st.secrets.gserviceaccount ထဲမှ တိုက်ရိုက်ဆွဲဖတ်မည်
+        elif "gserviceaccount" in st.secrets:
+            creds_dict = dict(st.secrets["gserviceaccount"])
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         else:
-            st.error(f"❌ '{key_filename}' ဖိုင်ကို ရှာမတွေ့ပါဗျာ။")
+            st.error("❌ Credentials မတွေ့ပါဗျာ။")
             return None
-        
+            
+        client = gspread.authorize(creds)
+        return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit")
     except Exception as e:
-        st.error(f"❌ Google Sheet Connection Error: {str(e)}")
+        st.error(f"❌ Connection Error: {str(e)}")
         return None
 
 import requests
