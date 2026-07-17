@@ -65,18 +65,21 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 🔑 လမ်းကြောင်းနှစ်ခုလုံးကို သတ်မှတ်ခြင်း (Render ၏ /etc/secrets/ လမ်းကြောင်းအမှန်ထည့်သွင်းထားပါသည်)
-        local_key_path = "backup/google_key.json"
-        render_key_path = "/etc/secrets/google_key.json"
+        # 🔑 ဖြစ်နိုင်သမျှ လမ်းကြောင်းအားလုံးကို Array ဖြင့် ပတ်စစ်ခြင်း
+        possible_paths = [
+            "/etc/secrets/google_key.json",
+            "google_key.json",
+            "backup/google_key.json"
+        ]
         
-        # ၁။ ပထမဦးဆုံး Render ပေါ်ရှိ လျှို့ဝှက်ဖိုင်လမ်းကြောင်းကို အရင်စစ်မည်
-        if os.path.exists(render_key_path):
-            creds = Credentials.from_service_account_file(render_key_path, scopes=scopes)
-            
-        # ၂။ မရှိမှသာ စက်ထဲက local_key_path (backup/) ကို ဒုတိယဦးစားပေး စစ်မည်
-        elif os.path.exists(local_key_path):
-            creds = Credentials.from_service_account_file(local_key_path, scopes=scopes)
-            
+        creds_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                creds_path = path
+                break
+                
+        if creds_path:
+            creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
         else:
             st.error("❌ Google Cloud Key ဖွဲ့စည်းမှုဖိုင်ကို စနစ်ထဲတွင် ရှာမတွေ့ပါဗျာ။")
             return None
