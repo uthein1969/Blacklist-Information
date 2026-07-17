@@ -56,6 +56,7 @@ def get_google_sheet():
     import streamlit as st
     import os
     import json
+    import base64
     from google.oauth2.service_account import Credentials
 
     try:
@@ -66,13 +67,16 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 🎯 Render Environment Variable မှ Google JSON ကီးစာသားစစ်စစ်ကို တိုက်ရိုက်ဖတ်ခြင်း
-        google_key_json = os.environ.get("GOOGLE_KEY_JSON")
+        # 🎯 Base64 အကွက်ထဲမှ ပျက်စီးခြင်းမရှိသော ကီးစာသားကို ဆွဲဖတ်ခြင်း
+        b64_data = os.environ.get("GOOGLE_KEY_BASE64")
         
-        if google_key_json:
+        if b64_data:
+            # Base64 မှ JSON String သို့ ပြန်ပြောင်းခြင်း
+            decoded_bytes = base64.b64decode(b64_data)
+            google_key_json = decoded_bytes.decode("utf-8")
+            
             creds_dict = json.loads(google_key_json)
             
-            # newline mapping အမှားကင်းစေရန်
             if "private_key" in creds_dict:
                 creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
                 
@@ -80,7 +84,7 @@ def get_google_sheet():
             client = gspread.authorize(creds)
             return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit")
         else:
-            st.error("❌ System Environment ထဲတွင် 'GOOGLE_KEY_JSON' ကို ရှာမတွေ့ပါဗျာ။")
+            st.error("❌ System Environment ထဲတွင် 'GOOGLE_KEY_BASE64' ကို ရှာမတွေ့ပါဗျာ။")
             return None
         
     except Exception as e:
