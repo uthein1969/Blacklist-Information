@@ -65,11 +65,11 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 🔑 လမ်းကြောင်းနှစ်ခုလုံးကို သတ်မှတ်ခြင်း
+        # 🔑 လမ်းကြောင်းနှစ်ခုလုံးကို သတ်မှတ်ခြင်း (Render ၏ /etc/secrets/ လမ်းကြောင်းအမှန်ထည့်သွင်းထားပါသည်)
         local_key_path = "backup/google_key.json"
-        render_key_path = "google_key.json"
+        render_key_path = "/etc/secrets/google_key.json"
         
-        # ၁။ ပထမဦးဆုံး ကီးအစစ် တင်ထားတဲ့ Render Secret File ရှိမရှိ အရင်စစ်မည်
+        # ၁။ ပထမဦးဆုံး Render ပေါ်ရှိ လျှို့ဝှက်ဖိုင်လမ်းကြောင်းကို အရင်စစ်မည်
         if os.path.exists(render_key_path):
             creds = Credentials.from_service_account_file(render_key_path, scopes=scopes)
             
