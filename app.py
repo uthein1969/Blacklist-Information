@@ -55,6 +55,7 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
+    import json
     from google.oauth2.service_account import Credentials
 
     try:
@@ -65,15 +66,21 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 🚀 ပရောဂျက် folder ထဲက backup/google_key.json ဖိုင်ကို တိုက်ရိုက်ဆွဲဖတ်ခြင်း
-        key_filename = "backup/google_key.json"
+        # 🎯 Render Environment Variable မှ Google JSON ကီးစာသားစစ်စစ်ကို တိုက်ရိုက်ဖတ်ခြင်း
+        google_key_json = os.environ.get("GOOGLE_KEY_JSON")
         
-        if os.path.exists(key_filename):
-            creds = Credentials.from_service_account_file(key_filename, scopes=scopes)
+        if google_key_json:
+            creds_dict = json.loads(google_key_json)
+            
+            # newline mapping အမှားကင်းစေရန်
+            if "private_key" in creds_dict:
+                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+                
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
             client = gspread.authorize(creds)
             return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit")
         else:
-            st.error(f"❌ '{key_filename}' ဖိုင်ကို ရှာမတွေ့ပါဗျာ။")
+            st.error("❌ System Environment ထဲတွင် 'GOOGLE_KEY_JSON' ကို ရှာမတွေ့ပါဗျာ။")
             return None
         
     except Exception as e:
