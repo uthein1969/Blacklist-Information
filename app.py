@@ -65,7 +65,7 @@ def get_google_sheet():
             
         client = gspread.authorize(creds)
         
-        # 🎯 ပုံထဲက Address Bar အတိုင်း တစ်လုံးမကျန် မှန်ကန်သော Google Sheet URL စစ်စစ်
+        # 🎯 အစ်ကို သတ်မှတ်လိုသော Google Sheet URL အမှန်
         correct_url = "https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3JI7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596"
         return client.open_by_url(correct_url)
         
