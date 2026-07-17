@@ -55,6 +55,8 @@ def get_google_sheet():
     import gspread
     import streamlit as st
     import os
+    import json
+    import base64
     from google.oauth2.service_account import Credentials
 
     try:
@@ -65,16 +67,32 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 🎯 backup/google_key.json ဖိုင်အစစ်ရှိပါက တိုက်ရိုက်ဖတ်မည်
+        # 🔑 ၁။ Local စက်ထဲတွင် Run နေပါက backup/google_key.json ဖိုင်အစစ်ကို တိုက်ရိုက်ဖတ်ခြင်း
         local_key_path = "backup/google_key.json"
         
         if os.path.exists(local_key_path):
             creds = Credentials.from_service_account_file(local_key_path, scopes=scopes)
             client = gspread.authorize(creds)
-            return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3JI7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596")
+            return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596")
+            
+        # ☁️ ၂။ Render ပေါ်တွင် Run နေပါက ပျက်စီးခြင်းမရှိသော Base64 စာသားမှ ဖတ်ခြင်း
         else:
-            st.error(f"❌ '{local_key_path}' ဖိုင်ကို ရှာမတွေ့ပါဗျာ။ ဖိုင်ရှိမရှိ ပြန်စစ်ပေးပါဦး။")
-            return None
+            b64_data = os.environ.get("GOOGLE_KEY_BASE64")
+            if b64_data:
+                # Base64 မှ မူရင်း JSON သို့ ပြန်ပြောင်းခြင်း
+                decoded_bytes = base64.b64decode(b64_data)
+                google_key_json = decoded_bytes.decode("utf-8")
+                
+                creds_dict = json.loads(google_key_json)
+                if "private_key" in creds_dict:
+                    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+                    
+                creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+                client = gspread.authorize(creds)
+                return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596")
+            else:
+                st.error("❌ Cloud Environment ထဲတွင် 'GOOGLE_KEY_BASE64' ကို ရှာမတွေ့ပါဗျာ။")
+                return None
         
     except Exception as e:
         st.error(f"❌ Google Sheet Connection Error: {str(e)}")

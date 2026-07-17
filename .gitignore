@@ -220,3 +220,5 @@ __marimo__/
 gen-lang-client-0490646413-a25b1a1118b6*.json
 .streamlit/
 backup/google_key.json
+*.json
+gen-lang-client-*.json
