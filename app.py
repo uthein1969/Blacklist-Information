@@ -8,7 +8,7 @@ import streamlit as st
 import datetime
 import pytz
 
-GOOGLE_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596"
+GOOGLE_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3JI7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596"
 
 # --- Supabase Configuration ---
 SUPABASE_URL = "https://batsowuihgwhxbboucpy.supabase.co"
@@ -66,7 +66,7 @@ def get_google_sheet():
         client = gspread.authorize(creds)
         
         # 🎯 ပုံထဲက Address Bar အတိုင်း တစ်လုံးမကျန် မှန်ကန်သော Google Sheet URL စစ်စစ်
-        correct_url = "https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596"
+        correct_url = "https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3JI7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596"
         return client.open_by_url(correct_url)
         
     except Exception as e:
