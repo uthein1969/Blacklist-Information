@@ -8,21 +8,7 @@ import streamlit as st
 import datetime
 import pytz
 
-# 🎯 ကီးများကို ဖိုင်ထဲကမဖတ်ဘဲ ကုဒ်ထဲမှာ တိုက်ရိုက် သတ်မှတ်ခြင်း
-GOOGLE_SHEET_CREDS = {
-    "type": "service_account",
-    "project_id": "gen-lang-client-0490646413",
-    "private_key_id": "c6cef5e04369eadf28938c7fdbf2e79c4afb06cc",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDMhOBlnkjIdZCm\nQ1dd0QA61CoTRVCYzmO2638a27kLmw7tSXBlA45m4Ry9xZi+mXpslMZ9i4LRW7fr\nA0I/uOYIrNCI8JEhXl9OMnRODaHnSYoLFlbX/t3ZA4x01PPDXlyj4BldqRwMMA3h\nkW2n4ZSuIHj5IGlnJq8abfPBGs9euGPpjgwcUVVhgW4pmwM5RFKX44OhGaZOPTGf\nzKswKS802CIuqfdF/a0WENf/a785lQkFq4fHr9LiCi45Ill0cNN2lQbRHRSkbXWy\nVqnTm0VKCiht3AVjx8+ZrD+FjQzqRuAKZn/nsAW+nMHQ76qui0BsSqXqnNFy0vNb\nqaMdJ2wvAgMBAAECggEAP+bgqj+bpC6/pINz/9c2yCrUfrLwrN4H3/aS/1RZ7Btl\nvZRtrtI+ozyBG3Zq9FrGGrkdj8qQdFPBEogxIfHmxh0hBziLUC7JfohbOKwfw0GC\nBVbUiaaTsKPgNfz3sTqBnZ5+rnoRTmmRXMJwzby5FPMGeWi8JkO7AHoMaHC1DHXm\n0/n1xX3GimnZH0P4CaAflbKkD4gNNWCq1JK9Aw33b38FpFMHqaUEuCSy5BLt7zmi\nvgnApSmmkstTpcd1Xrqd2fkxurkYKdoC63Q33DP7zLREI3m7I10fidJRoDvqZv8P\nXRfnqPPBhs8BgvcbxRy7DPzmwUFsbBy3/bQqSyRpqQKBgQD+EIbpeGKqaC2CltDZ\nGrkY8adPomfmDeaYUS679VnEcDREPcWKM4fhBiYZ2I24+XI3fnm40YxkqngMi/sU\ngCEHzFnOCwiLOLq1D8moQZC3GR+LWIaUDk86T7NTCkE72aINK7ZRbTMzyP9dtTga\nVMxAt3+vwfJ7xf9Htm6riOJPAwKBgQDOE7oDwVRrfL4BCaGHoCX4YSjkCyUPAesO\nNW5exg5OwhvoZpN9R08zDNx9gfhqacwn+3r8UbXq9Gy7qP0sf5hC7NDFu6GCRTPz\nAvNhNEeKEcLVseIhciwF7l+LsrKPrnlDSNAaEJRRTvvWoBqLT0A0B6fSdtMYPAIw\nQnOQHDTAZQKBgQC0U56uT5gYQ2Ep80nBDsqZ/cs3JpqAGxW0vspg9kAEwW8XkJCJ\CxJCkU6xwZa117dN1CMpHvJ68NPMc/5+CoNnOY/0QriJuHYs1UvYdND2ZIqTKP48\nT/vD85XgNsMea9Ytav04xj01YFCAfoOXjOB8fsHOSeaGG36Zs87RSZL3aQKBgQDN\nTOXCG/aIZuu7iOa9gRSSz+i210uCGf0cWKquDE3wtHytGJPS+Rmz2BpJhxP+n4ve\nQTES8ixz+DHi+sXOcQc1lUuf0f9jEqJgdQ4WRskGig86aU7I1z94YTQarlopvj3c\nhEudy+qW3kMSXMpVAw0JSJ8uk2ZV/GKJxYnvhcof6QKBgQCxOoLgadDVQzISTF4y\njewfeqkqaoPR0kQFEX4IahYKhkuKPtC65tsl93Xe43QhVMghwErv50ujpOi4Vwdo\nRmzsDKqFb2AoSM9RJl59MoBQ8JyHN70V+lreeI0OPPoHxE6TxWy26oc7zgyYJrb5\netsdjuhxEdmW+NgevYOrd4+Ptg==\n-----END PRIVATE KEY-----\n",
-    "client_email": "sys-sheet@gen-lang-client-0490646413.iam.gserviceaccount.com",
-    "client_id": "102931457188888534470",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/sys-sheet%40gen-lang-client-0490646413.iam.gserviceaccount.com",
-    "universe_domain": "googleapis.com"
-}
-GOOGLE_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit"
+GOOGLE_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596"
 
 # --- Supabase Configuration ---
 SUPABASE_URL = "https://batsowuihgwhxbboucpy.supabase.co"
@@ -65,27 +51,23 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 🔑 ဖြစ်နိုင်သမျှ လမ်းကြောင်းအားလုံးကို Array ဖြင့် ပတ်စစ်ခြင်း
-        possible_paths = [
-            "/etc/secrets/google_key.json",
-            "google_key.json",
-            "backup/google_key.json"
-        ]
+        # 🔑 လမ်းကြောင်းများကို စစ်ဆေးခြင်း
+        local_key_path = "backup/google_key.json"
+        render_key_path = "/etc/secrets/google_key.json"
         
-        creds_path = None
-        for path in possible_paths:
-            if os.path.exists(path):
-                creds_path = path
-                break
-                
-        if creds_path:
-            creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
+        if os.path.exists(render_key_path):
+            creds = Credentials.from_service_account_file(render_key_path, scopes=scopes)
+        elif os.path.exists(local_key_path):
+            creds = Credentials.from_service_account_file(local_key_path, scopes=scopes)
         else:
-            st.error("❌ Google Cloud Key ဖွဲ့စည်းမှုဖိုင်ကို စနစ်ထဲတွင် ရှာမတွေ့ပါဗျာ။")
+            st.error("❌ Google Cloud Key ဖိုင်ကို စနစ်ထဲတွင် ရှာမတွေ့ပါဗျာ။")
             return None
             
         client = gspread.authorize(creds)
-        return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596")
+        
+        # 🎯 စာလုံးပေါင်း ကွက်တိမှန်ကန်သော Google Sheet URL အမှန် (I အစား l သို့ ပြင်ဆင်ပြီး)
+        correct_url = "https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596"
+        return client.open_by_url(correct_url)
         
     except Exception as e:
         st.error(f"❌ Google Sheet Connection Error: {str(e)}")
