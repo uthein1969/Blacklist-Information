@@ -65,16 +65,24 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 🔑 Local ရော Render ပေါ်မှာပါ backup/google_key.json ဖိုင်အစစ်ကို တိုက်ရိုက်ဖတ်မည်
+        # 🔑 လမ်းကြောင်းနှစ်ခုလုံးကို သတ်မှတ်ခြင်း
         local_key_path = "backup/google_key.json"
+        render_key_path = "google_key.json"
         
-        if os.path.exists(local_key_path):
+        # ၁။ ပထမဦးဆုံး ကီးအစစ် တင်ထားတဲ့ Render Secret File ရှိမရှိ အရင်စစ်မည်
+        if os.path.exists(render_key_path):
+            creds = Credentials.from_service_account_file(render_key_path, scopes=scopes)
+            
+        # ၂။ မရှိမှသာ စက်ထဲက local_key_path (backup/) ကို ဒုတိယဦးစားပေး စစ်မည်
+        elif os.path.exists(local_key_path):
             creds = Credentials.from_service_account_file(local_key_path, scopes=scopes)
-            client = gspread.authorize(creds)
-            return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596")
+            
         else:
-            st.error(f"❌ '{local_key_path}' ဖိုင်ကို စနစ်ထဲတွင် ရှာမတွေ့ပါဗျာ။")
+            st.error("❌ Google Cloud Key ဖွဲ့စည်းမှုဖိုင်ကို စနစ်ထဲတွင် ရှာမတွေ့ပါဗျာ။")
             return None
+            
+        client = gspread.authorize(creds)
+        return client.open_by_url("https://docs.google.com/spreadsheets/d/1gyRkba-zWKZymQup952pMuX0hTg-r3Jl7q9DtpTFjAg/edit?gid=1494517596#gid=1494517596")
         
     except Exception as e:
         st.error(f"❌ Google Sheet Connection Error: {str(e)}")
