@@ -113,9 +113,8 @@ def is_supabase_alive():
 # 🌟 ၁။ Data Add New ရောက်လာလျှင် Google Sheet ၌ အောက်ဆုံးတွင် တန်းထည့်မည့် စနစ်
 def auto_sync_append_record(data_dict):
     try:
-        # ကုဒ်ထဲမှ တိုက်ရိုက် ကီးများကို သုံး၍ ချိတ်ဆက်ခြင်း
-        gc = gspread.service_account_from_dict(GOOGLE_SHEET_CREDS)
-        sh = gc.open_by_url(GOOGLE_SPREADSHEET_URL)
+        # 🎯 GOOGLE_SHEET_CREDS အစား အသစ်ပြင်ထားသော get_google_sheet() ကို လှမ်းခေါ်ခြင်း
+        sh = get_google_sheet()
         worksheet = sh.worksheet("blacklist_records")
         
         tz = pytz.timezone('Asia/Yangon')
@@ -141,13 +140,13 @@ def auto_sync_append_record(data_dict):
 # 🌟 ၂။ Data Update လိုက်လျှင် Google Sheet ထဲရှိ သက်ဆိုင်ရာ Row ကို လိုက်ပြင်ပေးမည့် စနစ်
 def auto_sync_update_record(record_id, updated_data_dict):
     try:
-        gc = gspread.service_account_from_dict(GOOGLE_SHEET_CREDS)
-        sh = gc.open_by_url(GOOGLE_SPREADSHEET_URL)
+        # 🎯 GOOGLE_SHEET_CREDS အစား အသစ်ပြင်ထားသော get_google_sheet() ကို လှမ်းခေါ်ခြင်း
+        sh = get_google_sheet()
         worksheet = sh.worksheet("blacklist_records")
-        
-        id_list = worksheet.col_values(1) 
+
+        id_list = worksheet.col_values(1)
         str_id = str(record_id)
-        
+
         if "id" not in updated_data_dict:
             updated_data_dict["id"] = str_id
 
@@ -958,12 +957,19 @@ def auto_cleanup_expired_logs():
         except Exception as e: print(f"Cleanup Error: {e}")
 
 # ====================================================
-# 🚀 APP ENTRY POINT & RUNTIME LIFE CYCLE
+# 🚀 APP ENTRY POINT & RUNTIME LIFE CYCLE (FIXED)
 # ====================================================
-if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
+# 🔑 ၁။ Session State မြဲနေစေရန် မရှိသေးပါက စတင်ကြေညာခြင်း
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+# 🚪 ၂။ Login စစ်ဆေးသည့် Logic
 if not st.session_state["logged_in"]:
+    # login_form() ထဲတွင် Username/Password မှန်ပါက 
+    # st.session_state["logged_in"] = True လို့ သတ်မှတ်ပေးရပါမည်
     login_form()
 else:
+    # 🎯 Login ဝင်ထားပြီးပါက အမြဲတမ်း main_app() ထဲတွင်သာ ရှိနေမည်ဖြစ်ပြီး Auto Logout မဖြစ်တော့ပါ
     auto_cleanup_expired_logs()
     main_app()
