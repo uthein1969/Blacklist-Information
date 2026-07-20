@@ -608,39 +608,74 @@ def main_app():
                                     
                             if update_submitted:
                                 changes_list = []
-                                if record.get('full_name', '').strip() != new_name.strip():
-                                    changes_list.append(f"Name: '{record.get('full_name')}' ➡️ '{new_name.strip()}'")
-                                if record.get('nrc_number', '').strip() != new_nrc.strip():
-                                    changes_list.append(f"NRC: '{record.get('nrc_number')}' ➡️ '{new_nrc.strip()}'")
-                                if record.get('Remark1', '').strip() != new_company.strip():
-                                    changes_list.append(f"Company: '{record.get('Remark1')}' ➡️ '{new_company.strip()}'")
-                                if record.get('Remark2', '').strip() != new_address.strip():
-                                    changes_list.append(f"Address: '{record.get('Remark2')}' ➡️ '{new_address.strip()}'")
-                                if record.get('reason', '').strip() != new_reason.strip():
-                                    changes_list.append(f"Reason: '{record.get('reason')}' ➡️ '{new_reason.strip()}'")
+                                
+                                # 🎯 Field တစ်ခုချင်းစီအတွက် Safe Strip ပြုလုပ်ခြင်း (None ဖြစ်ခဲ့လျှင် စာသားအလွတ် '' သို့ ပြောင်းပေးမည်)
+                                old_name = (record.get('full_name') or '').strip()
+                                old_nrc = (record.get('nrc_number') or '').strip()
+                                old_company = (record.get('Remark1') or '').strip()
+                                old_address = (record.get('Remark2') or '').strip()
+                                old_reason = (record.get('reason') or '').strip()
 
+                                clean_new_name = (new_name or '').strip()
+                                clean_new_nrc = (new_nrc or '').strip()
+                                clean_new_company = (new_company or '').strip()
+                                clean_new_address = (new_address or '').strip()
+                                clean_new_reason = (new_reason or '').strip()
+
+                                # 🔍 ပြောင်းလဲမှုများကို စစ်ဆေးခြင်း
+                                if old_name != clean_new_name:
+                                    changes_list.append(f"Name: '{old_name}' ➡️ '{clean_new_name}'")
+                                    
+                                if old_nrc != clean_new_nrc:
+                                    changes_list.append(f"NRC: '{old_nrc}' ➡️ '{clean_new_nrc}'")
+                                    
+                                if old_company != clean_new_company:
+                                    changes_list.append(f"Company: '{old_company}' ➡️ '{clean_new_company}'")
+                                    
+                                if old_address != clean_new_address:
+                                    changes_list.append(f"Address: '{old_address}' ➡️ '{clean_new_address}'")
+                                    
+                                if old_reason != clean_new_reason:
+                                    changes_list.append(f"Reason: '{old_reason}' ➡️ '{clean_new_reason}'")
+
+                                # 📸 NRC Photo Upload စစ်ဆေးခြင်း
                                 final_photo_url = record.get("image_url")
                                 if edit_uploaded_file is not None and ENABLE_SUPABASE:
                                     try:
                                         file_ext = edit_uploaded_file.name.split(".")[-1]
-                                        clean_nrc = new_nrc.strip().replace("/", "_").replace("(", "_").replace(")", "_").replace(" ", "")
+                                        # Safe clean_new_nrc ကို သုံးစွဲထားပါသည်
+                                        clean_nrc_str = clean_new_nrc.replace("/", "_").replace("(", "_").replace(")", "_").replace(" ", "")
                                         import time
-                                        storage_file_name = f"nrc_{clean_nrc}_{int(time.time())}.{file_ext}"
-                                        supabase.storage.from_("blacklist-images").upload(path=storage_file_name, file=edit_uploaded_file.getvalue(), file_options={"content-type": f"image/{file_ext}"})
+                                        storage_file_name = f"nrc_{clean_nrc_str}_{int(time.time())}.{file_ext}"
+                                        
+                                        supabase.storage.from_("blacklist-images").upload(
+                                            path=storage_file_name, 
+                                            file=edit_uploaded_file.getvalue(), 
+                                            file_options={"content-type": f"image/{file_ext}"}
+                                        )
                                         final_photo_url = supabase.storage.from_("blacklist-images").get_public_url(storage_file_name)
                                         changes_list.append("📸 NRC Photo Updated")
-                                    except Exception as e: st.error(f"⚠️ Error: {str(e)}")
+                                    except Exception as e:
+                                        st.error(f"⚠️ Image Upload Error: {str(e)}")
                                 
+                                # 🟢 Safe Variable များကို သုံး၍ Update Data Payload ပြင်ဆင်ခြင်း
                                 update_data = {
-                                    "full_name": new_name.strip(), "nrc_number": new_nrc.strip(), "reason": new_reason.strip(),
-                                    "Remark1": new_company.strip(), "Remark2": new_address.strip(), "image_url": final_photo_url
+                                    "full_name": clean_new_name,
+                                    "nrc_number": clean_new_nrc,
+                                    "reason": clean_new_reason,
+                                    "Remark1": clean_new_company,
+                                    "Remark2": clean_new_address,
+                                    "image_url": final_photo_url
                                 }
                                 
                                 current_id = record.get('id')
                                 
                                 # 🟢 Database Update (Supabase)
                                 if ENABLE_SUPABASE:
-                                    supabase.table("blacklist_records").update(update_data).eq("id", current_id).execute()
+                                    try:
+                                        supabase.table("blacklist_records").update(update_data).eq("id", current_id).execute()
+                                    except Exception as e:
+                                        st.error(f"⚠️ Database Update Error: {str(e)}")
                                 
                                 # 🌟 Real-time Update Sync to Google Sheet
                                 if ENABLE_GOOGLE_SHEET:
