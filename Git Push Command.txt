@@ -1,0 +1,16 @@
+Terminal
+
+git add app.py
+
+git commit -m "update code from my PC"
+
+git push origin main
+
+
+		
+-- user_logs table ထဲရှိ ဒေတာအားလုံးကို အပြီးတိုင် ရှင်းလင်းပစ်ခြင်း
+TRUNCATE TABLE public.user_logs RESTART IDENTITY;
+
+-- လွန်ခဲ့သော ရက်ပေါင်း ၃၀ ထက် ကျော်လွန်နေသော Log ဒေတာဟောင်းများကိုသာ ရွေးဖျက်ခြင်း
+DELETE FROM public.user_logs
+WHERE created_at < NOW() - INTERVAL '30 days';
