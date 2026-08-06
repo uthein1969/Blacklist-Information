@@ -19,7 +19,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ⚙️ LIVE CONNECTION TOGGLE SWITCHES (ပိတ်/ဖွင့် စမ်းသပ်ရန် ခလုတ်များ)
 # ========================================================
 ENABLE_SUPABASE = True      # False ထားပါက Supabase ထဲသို့ Data မသိမ်းဘဲ ကျော်သွားမည်
-ENABLE_GOOGLE_SHEET = True  # False ထားပါက Google Sheet ထဲသို့ Sync မလုပ်ဘဲ ကျော်သွားမည်
+ENABLE_GOOGLE_SHEET = False  # False ထားပါက Google Sheet ထဲသို့ Sync မလုပ်ဘဲ ကျော်သွားမည်
 
 def check_login(username, password):
     # 'users' table ထဲမှာ username နဲ့ password ကို စစ်ဆေးခြင်း
@@ -112,6 +112,8 @@ def is_supabase_alive():
 
 # 🌟 ၁။ Data Add New ရောက်လာလျှင် Google Sheet ၌ အောက်ဆုံးတွင် တန်းထည့်မည့် စနစ်
 def auto_sync_append_record(data_dict):
+    if not ENABLE_GOOGLE_SHEET:
+        return
     try:
         # 🎯 GOOGLE_SHEET_CREDS အစား အသစ်ပြင်ထားသော get_google_sheet() ကို လှမ်းခေါ်ခြင်း
         sh = get_google_sheet()
